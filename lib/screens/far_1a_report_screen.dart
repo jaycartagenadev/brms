@@ -3,9 +3,14 @@ import '../models/brms_models.dart';
 import '../theme/brms_theme.dart';
 import '../widgets/brms_common.dart';
 
-/// Screen 5: BRMS CSU Aparri - FAR 1-A Report (Monochrome).
+/// Screen 5: BRMS CSU Aparri - Reports (FAR 2, FAR 2 - A, Registries, Central).
 class Far1AReportScreen extends StatefulWidget {
-  const Far1AReportScreen({super.key});
+  const Far1AReportScreen({
+    super.key,
+    this.reportType = ReportType.far2,
+  });
+
+  final ReportType reportType;
 
   @override
   State<Far1AReportScreen> createState() => _Far1AReportScreenState();
@@ -71,9 +76,12 @@ class _Far1AReportScreenState extends State<Far1AReportScreen> {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const BrmsBadge(label: 'GAM FAR NO. 1-A', filled: true),
+                      BrmsBadge(
+                        label: 'GAM ${widget.reportType.label.toUpperCase()}',
+                        filled: true,
+                      ),
                       Text(
-                        'STATEMENT OF APPROPRIATIONS, ALLOTMENTS, OBLIGATIONS, DISBURSEMENTS & BALANCES',
+                        widget.reportType.subtitle,
                         style: BrmsTheme.mono(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -84,7 +92,7 @@ class _Far1AReportScreenState extends State<Far1AReportScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Financial Accountability Report (FAR No. 1-A)',
+                    'Financial Accountability Report (${widget.reportType.label})',
                     style: BrmsTheme.heading(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,

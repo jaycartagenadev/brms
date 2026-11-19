@@ -35,10 +35,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('OBLIGATION REGISTRIES'), findsOneWidget);
 
-    // Navigate to FAR 1-A Reports.
-    await tester.tap(find.text('FAR 1-A Reports'));
+    // Navigate to Reports dropdown and verify options.
+    await tester.tap(find.text('Reports'));
     await tester.pumpAndSettle();
-    expect(find.text('Financial Accountability Report (FAR No. 1-A)'), findsOneWidget);
+    expect(find.text('FAR 2'), findsOneWidget);
+    expect(find.text('FAR 2 - A'), findsOneWidget);
+    expect(find.text('Registries'), findsOneWidget);
+    expect(find.text('Central'), findsOneWidget);
+
+    await tester.tap(find.text('FAR 2 - A'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Financial Accountability Report (FAR 2 - A)'),
+      findsOneWidget,
+    );
 
     // Navigate to Accounts.
     await tester.tap(find.text('Accounts'));
@@ -69,11 +79,15 @@ void main() {
       'Dashboard',
       'Set Budget',
       'Obligation Registry',
-      'FAR 1-A Reports',
       'Accounts',
     ]) {
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
     }
+
+    await tester.tap(find.text('Reports'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('FAR 2'));
+    await tester.pumpAndSettle();
   });
 }

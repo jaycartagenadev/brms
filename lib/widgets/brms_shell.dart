@@ -25,9 +25,17 @@ class BrmsShell extends StatefulWidget {
 
 class _BrmsShellState extends State<BrmsShell> {
   late BrmsModule _activeModule = widget.initialModule;
+  ReportType _selectedReportType = ReportType.far2;
 
   void _selectModule(BrmsModule module) {
     setState(() => _activeModule = module);
+  }
+
+  void _selectReport(ReportType reportType) {
+    setState(() {
+      _selectedReportType = reportType;
+      _activeModule = BrmsModule.reports;
+    });
   }
 
   @override
@@ -267,6 +275,94 @@ class _BrmsShellState extends State<BrmsShell> {
           runSpacing: 4,
           children: BrmsModule.values.map((module) {
             final isSelected = module == _activeModule;
+            if (module == BrmsModule.reports) {
+              return PopupMenuButton<ReportType>(
+                tooltip: 'Select Report',
+                offset: const Offset(0, 42),
+                color: BrmsColors.surface,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: BrmsColors.outlineVariant),
+                ),
+                onSelected: _selectReport,
+                itemBuilder: (context) => ReportType.values.map((type) {
+                  final isCurrent =
+                      isSelected && type == _selectedReportType;
+                  return PopupMenuItem<ReportType>(
+                    value: type,
+                    height: 38,
+                    child: Row(
+                      children: [
+                        Icon(
+                          isCurrent
+                              ? Icons.check
+                              : Icons.description_outlined,
+                          size: 15,
+                          color: isCurrent
+                              ? BrmsColors.primary
+                              : BrmsColors.secondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          type.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isCurrent
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: BrmsColors.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? BrmsColors.primary
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _iconForModule(module),
+                        size: 16,
+                        color: isSelected ? Colors.white : BrmsColors.secondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        module.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : BrmsColors.secondary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: isSelected ? Colors.white : BrmsColors.secondary,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return InkWell(
               onTap: () => _selectModule(module),
               borderRadius: BorderRadius.circular(999),
@@ -317,7 +413,7 @@ class _BrmsShellState extends State<BrmsShell> {
         return Icons.account_balance_wallet_outlined;
       case BrmsModule.obligations:
         return Icons.receipt_long_outlined;
-      case BrmsModule.farReports:
+      case BrmsModule.reports:
         return Icons.assessment_outlined;
       case BrmsModule.accounts:
         return Icons.manage_accounts_outlined;
@@ -332,8 +428,8 @@ class _BrmsShellState extends State<BrmsShell> {
         return const SetBudgetScreen();
       case BrmsModule.obligations:
         return const ObligationRegistryScreen();
-      case BrmsModule.farReports:
-        return const Far1AReportScreen();
+      case BrmsModule.reports:
+        return Far1AReportScreen(reportType: _selectedReportType);
       case BrmsModule.accounts:
         return const AccountManagementScreen();
     }

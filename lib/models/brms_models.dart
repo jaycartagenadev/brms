@@ -3,11 +3,35 @@ enum BrmsModule {
   dashboard('Dashboard'),
   setBudget('Set Budget'),
   obligations('Obligation Registry'),
-  farReports('FAR 1-A Reports'),
+  reports('Reports'),
   accounts('Accounts');
 
   const BrmsModule(this.label);
   final String label;
+}
+
+/// Sub-report options under the Reports dropdown.
+enum ReportType {
+  far2(
+    'FAR 2',
+    'STATEMENT OF APPROVED BUDGET, UTILIZATIONS, DISBURSEMENTS & BALANCES',
+  ),
+  far2a(
+    'FAR 2 - A',
+    'SUMMARY OF APPROVED BUDGET, UTILIZATIONS, DISBURSEMENTS & BALANCES BY OBJECT',
+  ),
+  registries(
+    'Registries',
+    'REGISTRY OF ALLOTMENTS, OBLIGATIONS AND BALANCES',
+  ),
+  central(
+    'Central',
+    'CENTRAL OFFICE CONSOLIDATED FINANCIAL ACCOUNTABILITY REPORT',
+  );
+
+  const ReportType(this.label, this.subtitle);
+  final String label;
+  final String subtitle;
 }
 
 class FundCluster {

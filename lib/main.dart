@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/auth_gate_screen.dart';
 import 'theme/brms_theme.dart';
 import 'widgets/brms_shell.dart';
 
 void main() {
-  runApp(const BrmsApp());
+  runApp(const ProviderScope(child: BrmsApp()));
 }
 
 /// CSU-Aparri Budget Resource Monitoring System (BRMS) Desktop & Web App.
