@@ -1,0 +1,181 @@
+import 'package:flutter/material.dart';
+import '../theme/brms_theme.dart';
+
+/// Shared monochrome surface card matching Stitch's rounded-xl bordered container.
+class BrmsCard extends StatelessWidget {
+  const BrmsCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.backgroundColor = BrmsColors.surface,
+    this.borderColor = BrmsColors.outlineVariant,
+    this.borderRadius = 12,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color backgroundColor;
+  final Color borderColor;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: borderColor.withValues(alpha: 0.75)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Monochrome pill badge for codes, statuses, and tags.
+class BrmsBadge extends StatelessWidget {
+  const BrmsBadge({
+    super.key,
+    required this.label,
+    this.filled = false,
+    this.fontSize = 10,
+  });
+
+  final String label;
+  final bool filled;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: filled ? BrmsColors.primary : BrmsColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(5),
+        border: filled ? null : Border.all(color: BrmsColors.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: BrmsTheme.mono(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600,
+          color: filled ? BrmsColors.onPrimary : BrmsColors.onSurfaceVariant,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin monochrome horizontal progress bar.
+class BrmsProgressBar extends StatelessWidget {
+  const BrmsProgressBar({
+    super.key,
+    required this.value,
+    this.height = 6,
+    this.barColor = BrmsColors.barDark,
+    this.trackColor = BrmsColors.surfaceContainer,
+  });
+
+  final double value;
+  final double height;
+  final Color barColor;
+  final Color trackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: LinearProgressIndicator(
+        value: value.clamp(0.0, 1.0),
+        minHeight: height,
+        backgroundColor: trackColor,
+        valueColor: AlwaysStoppedAnimation<Color>(barColor),
+      ),
+    );
+  }
+}
+
+/// Standard monochrome primary or outlined action button.
+class BrmsButton extends StatelessWidget {
+  const BrmsButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.primary = true,
+    this.height = 36,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool primary;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = primary ? BrmsColors.primary : BrmsColors.surface;
+    final fg = primary ? BrmsColors.onPrimary : BrmsColors.onSurface;
+    return SizedBox(
+      height: height,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: bg,
+          foregroundColor: fg,
+          side: BorderSide(
+            color: primary ? BrmsColors.primary : BrmsColors.outlineVariant,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: fg),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows a clean monochrome toast/snackbar notification.
+void showBrmsNotice(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+        backgroundColor: BrmsColors.primary,
+        behavior: SnackBarBehavior.floating,
+        width: 420,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+}
