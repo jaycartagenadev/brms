@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
 import '../services/attachment_service.dart';
+import '../services/report_export_service.dart';
+
+export 'account_management_provider.dart';
 
 /// Singleton Drift database provider.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -13,6 +16,11 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 /// Local PDF attachment service provider.
 final attachmentServiceProvider = Provider<AttachmentService>((ref) {
   return const AttachmentService();
+});
+
+/// Official report export service (landscape PDF & CSV).
+final reportExportServiceProvider = Provider<ReportExportService>((ref) {
+  return const ReportExportService();
 });
 
 /// Reactive stream of all statutory and campus fund sources.
@@ -28,6 +36,12 @@ final uacsCodesProvider = StreamProvider<List<UacsCode>>((ref) {
 /// Reactive stream of budget allocations ordered by `date_of_allocation DESC`.
 final budgetAllocationsProvider = StreamProvider<List<BudgetAllocation>>((ref) {
   return ref.watch(databaseProvider).watchBudgetAllocations();
+});
+
+/// Reactive stream of budget modifications ordered by `modification_date DESC`.
+final budgetModificationsProvider =
+    StreamProvider<List<BudgetModification>>((ref) {
+  return ref.watch(databaseProvider).watchBudgetModifications();
 });
 
 /// Reactive stream of obligation registries ordered by `date DESC, obr_no DESC`.
@@ -50,6 +64,11 @@ final distinctPayeesProvider = StreamProvider<List<String>>((ref) {
 /// Reactive stream of distinct historical particulars for autocomplete.
 final distinctParticularsProvider = StreamProvider<List<String>>((ref) {
   return ref.watch(databaseProvider).watchDistinctParticulars();
+});
+
+/// Reactive stream of distinct activity/project names for autocomplete.
+final distinctActivityProjectsProvider = StreamProvider<List<String>>((ref) {
+  return ref.watch(databaseProvider).watchDistinctActivityProjects();
 });
 
 /// Query key for calculating remaining available balance.
@@ -78,21 +97,31 @@ class BalanceQueryKey {
       Object.hash(fundCode, allotmentClass, excludeObligationId);
 }
 
-/// Real-time remaining available balance for a given `fundCode` and `allotmentClass`:
-/// `sum(Active Adjusted Allotments) - sum(Existing Obligations)`.
-/// Recomputes automatically whenever allocations or obligations change.
+/// Real-time remaining available adjusted budget for a given `fundCode` and
+/// `allotmentClass`:
+/// `sum(beginning_balance + authorized_appropriations + modifications) - sum(gross_amount)`.
+/// Recomputes automatically whenever allocations, modifications, or obligations change.
 final remainingBalanceProvider =
     Provider.family<AsyncValue<double>, BalanceQueryKey>((ref, key) {
   final allocationsAsync = ref.watch(budgetAllocationsProvider);
+  final modificationsAsync = ref.watch(budgetModificationsProvider);
   final obligationsAsync = ref.watch(obligationRegistriesProvider);
 
-  if (allocationsAsync.isLoading || obligationsAsync.isLoading) {
+  if (allocationsAsync.isLoading ||
+      modificationsAsync.isLoading ||
+      obligationsAsync.isLoading) {
     return const AsyncValue.loading();
   }
   if (allocationsAsync.hasError) {
     return AsyncValue.error(
       allocationsAsync.error!,
       allocationsAsync.stackTrace ?? StackTrace.current,
+    );
+  }
+  if (modificationsAsync.hasError) {
+    return AsyncValue.error(
+      modificationsAsync.error!,
+      modificationsAsync.stackTrace ?? StackTrace.current,
     );
   }
   if (obligationsAsync.hasError) {
@@ -103,9 +132,11 @@ final remainingBalanceProvider =
   }
 
   final allocations = allocationsAsync.value ?? const <BudgetAllocation>[];
+  final modifications =
+      modificationsAsync.value ?? const <BudgetModification>[];
   final obligations = obligationsAsync.value ?? const <ObligationRegistry>[];
 
-  final totalAllotment = allocations
+  final totalBudget = allocations
       .where(
         (a) =>
             a.isHidden == 0 &&
@@ -114,8 +145,19 @@ final remainingBalanceProvider =
       )
       .fold<double>(
         0.0,
-        (sum, a) => sum + a.allotmentReceived + a.adjustmentsAllotment,
+        (sum, a) =>
+            sum +
+            a.beginningBalance +
+            a.authorizedAppropriations +
+            a.adjustmentsAllotment,
       );
+
+  final totalMods = modifications
+      .where(
+        (m) =>
+            m.fundCode == key.fundCode && m.allotmentClass == key.allotmentClass,
+      )
+      .fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
 
   final totalObligated = obligations
       .where(
@@ -126,7 +168,7 @@ final remainingBalanceProvider =
       )
       .fold<double>(0.0, (sum, o) => sum + o.grossAmount);
 
-  return AsyncValue.data(totalAllotment - totalObligated);
+  return AsyncValue.data((totalBudget + totalMods) - totalObligated);
 });
 
 /// Aggregated totals per fund source for Dashboard and FAR 1-A consumers.
@@ -146,15 +188,17 @@ class FundBalanceSummary {
   double get unobligated => totalAllotment - totalObligated;
 }
 
-/// Reactive summary map keyed by `fund_code` for Dashboard / FAR 1-A totals.
+/// Reactive summary map keyed by `fund_code`.
 final fundBalanceSummaryProvider =
     Provider<AsyncValue<Map<String, FundBalanceSummary>>>((ref) {
   final fundsAsync = ref.watch(fundSourcesProvider);
   final allocationsAsync = ref.watch(budgetAllocationsProvider);
+  final modificationsAsync = ref.watch(budgetModificationsProvider);
   final obligationsAsync = ref.watch(obligationRegistriesProvider);
 
   if (fundsAsync.isLoading ||
       allocationsAsync.isLoading ||
+      modificationsAsync.isLoading ||
       obligationsAsync.isLoading) {
     return const AsyncValue.loading();
   }
@@ -170,6 +214,12 @@ final fundBalanceSummaryProvider =
       allocationsAsync.stackTrace ?? StackTrace.current,
     );
   }
+  if (modificationsAsync.hasError) {
+    return AsyncValue.error(
+      modificationsAsync.error!,
+      modificationsAsync.stackTrace ?? StackTrace.current,
+    );
+  }
   if (obligationsAsync.hasError) {
     return AsyncValue.error(
       obligationsAsync.error!,
@@ -179,6 +229,8 @@ final fundBalanceSummaryProvider =
 
   final funds = fundsAsync.value ?? const <FundSource>[];
   final allocations = allocationsAsync.value ?? const <BudgetAllocation>[];
+  final modifications =
+      modificationsAsync.value ?? const <BudgetModification>[];
   final obligations = obligationsAsync.value ?? const <ObligationRegistry>[];
 
   final result = <String, FundBalanceSummary>{};
@@ -187,8 +239,15 @@ final fundBalanceSummaryProvider =
         .where((a) => a.isHidden == 0 && a.fundCode == fund.fundCode)
         .fold<double>(
           0.0,
-          (sum, a) => sum + a.allotmentReceived + a.adjustmentsAllotment,
+          (sum, a) =>
+              sum +
+              a.beginningBalance +
+              a.authorizedAppropriations +
+              a.adjustmentsAllotment,
         );
+    final mods = modifications
+        .where((m) => m.fundCode == fund.fundCode)
+        .fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
     final obligated = obligations
         .where((o) => o.fundCode == fund.fundCode)
         .fold<double>(0.0, (sum, o) => sum + o.grossAmount);
@@ -198,7 +257,7 @@ final fundBalanceSummaryProvider =
 
     result[fund.fundCode] = FundBalanceSummary(
       fundCode: fund.fundCode,
-      totalAllotment: allotment,
+      totalAllotment: allotment + mods,
       totalObligated: obligated,
       totalDisbursed: disbursed,
     );

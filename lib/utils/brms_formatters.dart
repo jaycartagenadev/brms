@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 class BrmsFormatters {
   const BrmsFormatters._();
 
-  static final NumberFormat _phpCurrencyFormat = NumberFormat('#,##0.00', 'en_US');
+  static final NumberFormat _phpCurrencyFormat = NumberFormat(
+    '#,##0.00',
+    'en_US',
+  );
   static final DateFormat _isoDateFormat = DateFormat('yyyy-MM-dd');
   static final DateFormat _displayDateFormat = DateFormat('MM-dd-yyyy');
 
@@ -23,12 +26,22 @@ class BrmsFormatters {
     '2025-2026',
   ];
 
+  /// Fixed allowed `mfo_program` values in exact FAR 2 reporting order.
+  static const List<String> mfoPrograms = [
+    'A.I General Administration and Support',
+    'A.II Support to Operations',
+    'MFO 1: Higher Education',
+    'MFO 2: Advance Education',
+    'MFO 3: Research',
+    'MFO 4: Extension Services',
+  ];
+
   /// Formats [amount] as `Php #,##0.00`.
   static String formatPhp(double amount) {
     return 'Php ${_phpCurrencyFormat.format(amount)}';
   }
 
-  /// Formats [amount] as `#,##0.00` without currency prefix (e.g., for input fields).
+  /// Formats [amount] as `#,##0.00` without currency prefix (for report cells).
   static String formatNumber(double amount) {
     return _phpCurrencyFormat.format(amount);
   }

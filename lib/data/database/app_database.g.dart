@@ -618,6 +618,30 @@ class $BudgetAllocationsTable extends BudgetAllocations
       'REFERENCES fund_sources (fund_code)',
     ),
   );
+  static const VerificationMeta _mfoProgramMeta = const VerificationMeta(
+    'mfoProgram',
+  );
+  @override
+  late final GeneratedColumn<String> mfoProgram = GeneratedColumn<String>(
+    'mfo_program',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('A.I General Administration and Support'),
+  );
+  static const VerificationMeta _activityProjectMeta = const VerificationMeta(
+    'activityProject',
+  );
+  @override
+  late final GeneratedColumn<String> activityProject = GeneratedColumn<String>(
+    'activity_project',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('General Operations'),
+  );
   static const VerificationMeta _allotmentClassMeta = const VerificationMeta(
     'allotmentClass',
   );
@@ -642,6 +666,18 @@ class $BudgetAllocationsTable extends BudgetAllocations
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES uacs_codes (account_code)',
     ),
+  );
+  static const VerificationMeta _beginningBalanceMeta = const VerificationMeta(
+    'beginningBalance',
+  );
+  @override
+  late final GeneratedColumn<double> beginningBalance = GeneratedColumn<double>(
+    'beginning_balance',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
   );
   static const VerificationMeta _authorizedAppropriationsMeta =
       const VerificationMeta('authorizedAppropriations');
@@ -720,8 +756,11 @@ class $BudgetAllocationsTable extends BudgetAllocations
     id,
     fiscalYear,
     fundCode,
+    mfoProgram,
+    activityProject,
     allotmentClass,
     accountCode,
+    beginningBalance,
     authorizedAppropriations,
     adjustmentsAppropriations,
     allotmentReceived,
@@ -760,6 +799,21 @@ class $BudgetAllocationsTable extends BudgetAllocations
     } else if (isInserting) {
       context.missing(_fundCodeMeta);
     }
+    if (data.containsKey('mfo_program')) {
+      context.handle(
+        _mfoProgramMeta,
+        mfoProgram.isAcceptableOrUnknown(data['mfo_program']!, _mfoProgramMeta),
+      );
+    }
+    if (data.containsKey('activity_project')) {
+      context.handle(
+        _activityProjectMeta,
+        activityProject.isAcceptableOrUnknown(
+          data['activity_project']!,
+          _activityProjectMeta,
+        ),
+      );
+    }
     if (data.containsKey('allotment_class')) {
       context.handle(
         _allotmentClassMeta,
@@ -777,6 +831,15 @@ class $BudgetAllocationsTable extends BudgetAllocations
         accountCode.isAcceptableOrUnknown(
           data['account_code']!,
           _accountCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('beginning_balance')) {
+      context.handle(
+        _beginningBalanceMeta,
+        beginningBalance.isAcceptableOrUnknown(
+          data['beginning_balance']!,
+          _beginningBalanceMeta,
         ),
       );
     }
@@ -854,6 +917,14 @@ class $BudgetAllocationsTable extends BudgetAllocations
         DriftSqlType.string,
         data['${effectivePrefix}fund_code'],
       )!,
+      mfoProgram: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mfo_program'],
+      )!,
+      activityProject: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_project'],
+      )!,
       allotmentClass: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}allotment_class'],
@@ -862,6 +933,10 @@ class $BudgetAllocationsTable extends BudgetAllocations
         DriftSqlType.string,
         data['${effectivePrefix}account_code'],
       ),
+      beginningBalance: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}beginning_balance'],
+      )!,
       authorizedAppropriations: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}authorized_appropriations'],
@@ -900,8 +975,11 @@ class BudgetAllocation extends DataClass
   final int id;
   final String fiscalYear;
   final String fundCode;
+  final String mfoProgram;
+  final String activityProject;
   final String allotmentClass;
   final String? accountCode;
+  final double beginningBalance;
   final double authorizedAppropriations;
   final double adjustmentsAppropriations;
   final double allotmentReceived;
@@ -912,8 +990,11 @@ class BudgetAllocation extends DataClass
     required this.id,
     required this.fiscalYear,
     required this.fundCode,
+    required this.mfoProgram,
+    required this.activityProject,
     required this.allotmentClass,
     this.accountCode,
+    required this.beginningBalance,
     required this.authorizedAppropriations,
     required this.adjustmentsAppropriations,
     required this.allotmentReceived,
@@ -927,10 +1008,13 @@ class BudgetAllocation extends DataClass
     map['id'] = Variable<int>(id);
     map['fiscal_year'] = Variable<String>(fiscalYear);
     map['fund_code'] = Variable<String>(fundCode);
+    map['mfo_program'] = Variable<String>(mfoProgram);
+    map['activity_project'] = Variable<String>(activityProject);
     map['allotment_class'] = Variable<String>(allotmentClass);
     if (!nullToAbsent || accountCode != null) {
       map['account_code'] = Variable<String>(accountCode);
     }
+    map['beginning_balance'] = Variable<double>(beginningBalance);
     map['authorized_appropriations'] = Variable<double>(
       authorizedAppropriations,
     );
@@ -949,10 +1033,13 @@ class BudgetAllocation extends DataClass
       id: Value(id),
       fiscalYear: Value(fiscalYear),
       fundCode: Value(fundCode),
+      mfoProgram: Value(mfoProgram),
+      activityProject: Value(activityProject),
       allotmentClass: Value(allotmentClass),
       accountCode: accountCode == null && nullToAbsent
           ? const Value.absent()
           : Value(accountCode),
+      beginningBalance: Value(beginningBalance),
       authorizedAppropriations: Value(authorizedAppropriations),
       adjustmentsAppropriations: Value(adjustmentsAppropriations),
       allotmentReceived: Value(allotmentReceived),
@@ -971,8 +1058,11 @@ class BudgetAllocation extends DataClass
       id: serializer.fromJson<int>(json['id']),
       fiscalYear: serializer.fromJson<String>(json['fiscalYear']),
       fundCode: serializer.fromJson<String>(json['fundCode']),
+      mfoProgram: serializer.fromJson<String>(json['mfoProgram']),
+      activityProject: serializer.fromJson<String>(json['activityProject']),
       allotmentClass: serializer.fromJson<String>(json['allotmentClass']),
       accountCode: serializer.fromJson<String?>(json['accountCode']),
+      beginningBalance: serializer.fromJson<double>(json['beginningBalance']),
       authorizedAppropriations: serializer.fromJson<double>(
         json['authorizedAppropriations'],
       ),
@@ -994,8 +1084,11 @@ class BudgetAllocation extends DataClass
       'id': serializer.toJson<int>(id),
       'fiscalYear': serializer.toJson<String>(fiscalYear),
       'fundCode': serializer.toJson<String>(fundCode),
+      'mfoProgram': serializer.toJson<String>(mfoProgram),
+      'activityProject': serializer.toJson<String>(activityProject),
       'allotmentClass': serializer.toJson<String>(allotmentClass),
       'accountCode': serializer.toJson<String?>(accountCode),
+      'beginningBalance': serializer.toJson<double>(beginningBalance),
       'authorizedAppropriations': serializer.toJson<double>(
         authorizedAppropriations,
       ),
@@ -1013,8 +1106,11 @@ class BudgetAllocation extends DataClass
     int? id,
     String? fiscalYear,
     String? fundCode,
+    String? mfoProgram,
+    String? activityProject,
     String? allotmentClass,
     Value<String?> accountCode = const Value.absent(),
+    double? beginningBalance,
     double? authorizedAppropriations,
     double? adjustmentsAppropriations,
     double? allotmentReceived,
@@ -1025,8 +1121,11 @@ class BudgetAllocation extends DataClass
     id: id ?? this.id,
     fiscalYear: fiscalYear ?? this.fiscalYear,
     fundCode: fundCode ?? this.fundCode,
+    mfoProgram: mfoProgram ?? this.mfoProgram,
+    activityProject: activityProject ?? this.activityProject,
     allotmentClass: allotmentClass ?? this.allotmentClass,
     accountCode: accountCode.present ? accountCode.value : this.accountCode,
+    beginningBalance: beginningBalance ?? this.beginningBalance,
     authorizedAppropriations:
         authorizedAppropriations ?? this.authorizedAppropriations,
     adjustmentsAppropriations:
@@ -1043,12 +1142,21 @@ class BudgetAllocation extends DataClass
           ? data.fiscalYear.value
           : this.fiscalYear,
       fundCode: data.fundCode.present ? data.fundCode.value : this.fundCode,
+      mfoProgram: data.mfoProgram.present
+          ? data.mfoProgram.value
+          : this.mfoProgram,
+      activityProject: data.activityProject.present
+          ? data.activityProject.value
+          : this.activityProject,
       allotmentClass: data.allotmentClass.present
           ? data.allotmentClass.value
           : this.allotmentClass,
       accountCode: data.accountCode.present
           ? data.accountCode.value
           : this.accountCode,
+      beginningBalance: data.beginningBalance.present
+          ? data.beginningBalance.value
+          : this.beginningBalance,
       authorizedAppropriations: data.authorizedAppropriations.present
           ? data.authorizedAppropriations.value
           : this.authorizedAppropriations,
@@ -1074,8 +1182,11 @@ class BudgetAllocation extends DataClass
           ..write('id: $id, ')
           ..write('fiscalYear: $fiscalYear, ')
           ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
           ..write('allotmentClass: $allotmentClass, ')
           ..write('accountCode: $accountCode, ')
+          ..write('beginningBalance: $beginningBalance, ')
           ..write('authorizedAppropriations: $authorizedAppropriations, ')
           ..write('adjustmentsAppropriations: $adjustmentsAppropriations, ')
           ..write('allotmentReceived: $allotmentReceived, ')
@@ -1091,8 +1202,11 @@ class BudgetAllocation extends DataClass
     id,
     fiscalYear,
     fundCode,
+    mfoProgram,
+    activityProject,
     allotmentClass,
     accountCode,
+    beginningBalance,
     authorizedAppropriations,
     adjustmentsAppropriations,
     allotmentReceived,
@@ -1107,8 +1221,11 @@ class BudgetAllocation extends DataClass
           other.id == this.id &&
           other.fiscalYear == this.fiscalYear &&
           other.fundCode == this.fundCode &&
+          other.mfoProgram == this.mfoProgram &&
+          other.activityProject == this.activityProject &&
           other.allotmentClass == this.allotmentClass &&
           other.accountCode == this.accountCode &&
+          other.beginningBalance == this.beginningBalance &&
           other.authorizedAppropriations == this.authorizedAppropriations &&
           other.adjustmentsAppropriations == this.adjustmentsAppropriations &&
           other.allotmentReceived == this.allotmentReceived &&
@@ -1121,8 +1238,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
   final Value<int> id;
   final Value<String> fiscalYear;
   final Value<String> fundCode;
+  final Value<String> mfoProgram;
+  final Value<String> activityProject;
   final Value<String> allotmentClass;
   final Value<String?> accountCode;
+  final Value<double> beginningBalance;
   final Value<double> authorizedAppropriations;
   final Value<double> adjustmentsAppropriations;
   final Value<double> allotmentReceived;
@@ -1133,8 +1253,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
     this.id = const Value.absent(),
     this.fiscalYear = const Value.absent(),
     this.fundCode = const Value.absent(),
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
     this.allotmentClass = const Value.absent(),
     this.accountCode = const Value.absent(),
+    this.beginningBalance = const Value.absent(),
     this.authorizedAppropriations = const Value.absent(),
     this.adjustmentsAppropriations = const Value.absent(),
     this.allotmentReceived = const Value.absent(),
@@ -1146,8 +1269,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
     this.id = const Value.absent(),
     required String fiscalYear,
     required String fundCode,
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
     required String allotmentClass,
     this.accountCode = const Value.absent(),
+    this.beginningBalance = const Value.absent(),
     this.authorizedAppropriations = const Value.absent(),
     this.adjustmentsAppropriations = const Value.absent(),
     this.allotmentReceived = const Value.absent(),
@@ -1162,8 +1288,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
     Expression<int>? id,
     Expression<String>? fiscalYear,
     Expression<String>? fundCode,
+    Expression<String>? mfoProgram,
+    Expression<String>? activityProject,
     Expression<String>? allotmentClass,
     Expression<String>? accountCode,
+    Expression<double>? beginningBalance,
     Expression<double>? authorizedAppropriations,
     Expression<double>? adjustmentsAppropriations,
     Expression<double>? allotmentReceived,
@@ -1175,8 +1304,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
       if (id != null) 'id': id,
       if (fiscalYear != null) 'fiscal_year': fiscalYear,
       if (fundCode != null) 'fund_code': fundCode,
+      if (mfoProgram != null) 'mfo_program': mfoProgram,
+      if (activityProject != null) 'activity_project': activityProject,
       if (allotmentClass != null) 'allotment_class': allotmentClass,
       if (accountCode != null) 'account_code': accountCode,
+      if (beginningBalance != null) 'beginning_balance': beginningBalance,
       if (authorizedAppropriations != null)
         'authorized_appropriations': authorizedAppropriations,
       if (adjustmentsAppropriations != null)
@@ -1193,8 +1325,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
     Value<int>? id,
     Value<String>? fiscalYear,
     Value<String>? fundCode,
+    Value<String>? mfoProgram,
+    Value<String>? activityProject,
     Value<String>? allotmentClass,
     Value<String?>? accountCode,
+    Value<double>? beginningBalance,
     Value<double>? authorizedAppropriations,
     Value<double>? adjustmentsAppropriations,
     Value<double>? allotmentReceived,
@@ -1206,8 +1341,11 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
       id: id ?? this.id,
       fiscalYear: fiscalYear ?? this.fiscalYear,
       fundCode: fundCode ?? this.fundCode,
+      mfoProgram: mfoProgram ?? this.mfoProgram,
+      activityProject: activityProject ?? this.activityProject,
       allotmentClass: allotmentClass ?? this.allotmentClass,
       accountCode: accountCode ?? this.accountCode,
+      beginningBalance: beginningBalance ?? this.beginningBalance,
       authorizedAppropriations:
           authorizedAppropriations ?? this.authorizedAppropriations,
       adjustmentsAppropriations:
@@ -1231,11 +1369,20 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
     if (fundCode.present) {
       map['fund_code'] = Variable<String>(fundCode.value);
     }
+    if (mfoProgram.present) {
+      map['mfo_program'] = Variable<String>(mfoProgram.value);
+    }
+    if (activityProject.present) {
+      map['activity_project'] = Variable<String>(activityProject.value);
+    }
     if (allotmentClass.present) {
       map['allotment_class'] = Variable<String>(allotmentClass.value);
     }
     if (accountCode.present) {
       map['account_code'] = Variable<String>(accountCode.value);
+    }
+    if (beginningBalance.present) {
+      map['beginning_balance'] = Variable<double>(beginningBalance.value);
     }
     if (authorizedAppropriations.present) {
       map['authorized_appropriations'] = Variable<double>(
@@ -1270,14 +1417,657 @@ class BudgetAllocationsCompanion extends UpdateCompanion<BudgetAllocation> {
           ..write('id: $id, ')
           ..write('fiscalYear: $fiscalYear, ')
           ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
           ..write('allotmentClass: $allotmentClass, ')
           ..write('accountCode: $accountCode, ')
+          ..write('beginningBalance: $beginningBalance, ')
           ..write('authorizedAppropriations: $authorizedAppropriations, ')
           ..write('adjustmentsAppropriations: $adjustmentsAppropriations, ')
           ..write('allotmentReceived: $allotmentReceived, ')
           ..write('adjustmentsAllotment: $adjustmentsAllotment, ')
           ..write('dateOfAllocation: $dateOfAllocation, ')
           ..write('isHidden: $isHidden')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BudgetModificationsTable extends BudgetModifications
+    with TableInfo<$BudgetModificationsTable, BudgetModification> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BudgetModificationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _allocationIdMeta = const VerificationMeta(
+    'allocationId',
+  );
+  @override
+  late final GeneratedColumn<int> allocationId = GeneratedColumn<int>(
+    'allocation_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES budget_allocations (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _fiscalYearMeta = const VerificationMeta(
+    'fiscalYear',
+  );
+  @override
+  late final GeneratedColumn<String> fiscalYear = GeneratedColumn<String>(
+    'fiscal_year',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fundCodeMeta = const VerificationMeta(
+    'fundCode',
+  );
+  @override
+  late final GeneratedColumn<String> fundCode = GeneratedColumn<String>(
+    'fund_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES fund_sources (fund_code)',
+    ),
+  );
+  static const VerificationMeta _mfoProgramMeta = const VerificationMeta(
+    'mfoProgram',
+  );
+  @override
+  late final GeneratedColumn<String> mfoProgram = GeneratedColumn<String>(
+    'mfo_program',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('A.I General Administration and Support'),
+  );
+  static const VerificationMeta _activityProjectMeta = const VerificationMeta(
+    'activityProject',
+  );
+  @override
+  late final GeneratedColumn<String> activityProject = GeneratedColumn<String>(
+    'activity_project',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('General Operations'),
+  );
+  static const VerificationMeta _allotmentClassMeta = const VerificationMeta(
+    'allotmentClass',
+  );
+  @override
+  late final GeneratedColumn<String> allotmentClass = GeneratedColumn<String>(
+    'allotment_class',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountCodeMeta = const VerificationMeta(
+    'accountCode',
+  );
+  @override
+  late final GeneratedColumn<String> accountCode = GeneratedColumn<String>(
+    'account_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES uacs_codes (account_code)',
+    ),
+  );
+  static const VerificationMeta _modificationAmountMeta =
+      const VerificationMeta('modificationAmount');
+  @override
+  late final GeneratedColumn<double> modificationAmount =
+      GeneratedColumn<double>(
+        'modification_amount',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.0),
+      );
+  static const VerificationMeta _modificationDateMeta = const VerificationMeta(
+    'modificationDate',
+  );
+  @override
+  late final GeneratedColumn<String> modificationDate = GeneratedColumn<String>(
+    'modification_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    allocationId,
+    fiscalYear,
+    fundCode,
+    mfoProgram,
+    activityProject,
+    allotmentClass,
+    accountCode,
+    modificationAmount,
+    modificationDate,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'budget_modifications';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BudgetModification> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('allocation_id')) {
+      context.handle(
+        _allocationIdMeta,
+        allocationId.isAcceptableOrUnknown(
+          data['allocation_id']!,
+          _allocationIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fiscal_year')) {
+      context.handle(
+        _fiscalYearMeta,
+        fiscalYear.isAcceptableOrUnknown(data['fiscal_year']!, _fiscalYearMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fiscalYearMeta);
+    }
+    if (data.containsKey('fund_code')) {
+      context.handle(
+        _fundCodeMeta,
+        fundCode.isAcceptableOrUnknown(data['fund_code']!, _fundCodeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fundCodeMeta);
+    }
+    if (data.containsKey('mfo_program')) {
+      context.handle(
+        _mfoProgramMeta,
+        mfoProgram.isAcceptableOrUnknown(data['mfo_program']!, _mfoProgramMeta),
+      );
+    }
+    if (data.containsKey('activity_project')) {
+      context.handle(
+        _activityProjectMeta,
+        activityProject.isAcceptableOrUnknown(
+          data['activity_project']!,
+          _activityProjectMeta,
+        ),
+      );
+    }
+    if (data.containsKey('allotment_class')) {
+      context.handle(
+        _allotmentClassMeta,
+        allotmentClass.isAcceptableOrUnknown(
+          data['allotment_class']!,
+          _allotmentClassMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_allotmentClassMeta);
+    }
+    if (data.containsKey('account_code')) {
+      context.handle(
+        _accountCodeMeta,
+        accountCode.isAcceptableOrUnknown(
+          data['account_code']!,
+          _accountCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modification_amount')) {
+      context.handle(
+        _modificationAmountMeta,
+        modificationAmount.isAcceptableOrUnknown(
+          data['modification_amount']!,
+          _modificationAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modification_date')) {
+      context.handle(
+        _modificationDateMeta,
+        modificationDate.isAcceptableOrUnknown(
+          data['modification_date']!,
+          _modificationDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_modificationDateMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BudgetModification map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BudgetModification(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      allocationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}allocation_id'],
+      ),
+      fiscalYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fiscal_year'],
+      )!,
+      fundCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fund_code'],
+      )!,
+      mfoProgram: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mfo_program'],
+      )!,
+      activityProject: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_project'],
+      )!,
+      allotmentClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}allotment_class'],
+      )!,
+      accountCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_code'],
+      ),
+      modificationAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}modification_amount'],
+      )!,
+      modificationDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modification_date'],
+      )!,
+    );
+  }
+
+  @override
+  $BudgetModificationsTable createAlias(String alias) {
+    return $BudgetModificationsTable(attachedDatabase, alias);
+  }
+}
+
+class BudgetModification extends DataClass
+    implements Insertable<BudgetModification> {
+  final int id;
+  final int? allocationId;
+  final String fiscalYear;
+  final String fundCode;
+  final String mfoProgram;
+  final String activityProject;
+  final String allotmentClass;
+  final String? accountCode;
+  final double modificationAmount;
+  final String modificationDate;
+  const BudgetModification({
+    required this.id,
+    this.allocationId,
+    required this.fiscalYear,
+    required this.fundCode,
+    required this.mfoProgram,
+    required this.activityProject,
+    required this.allotmentClass,
+    this.accountCode,
+    required this.modificationAmount,
+    required this.modificationDate,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || allocationId != null) {
+      map['allocation_id'] = Variable<int>(allocationId);
+    }
+    map['fiscal_year'] = Variable<String>(fiscalYear);
+    map['fund_code'] = Variable<String>(fundCode);
+    map['mfo_program'] = Variable<String>(mfoProgram);
+    map['activity_project'] = Variable<String>(activityProject);
+    map['allotment_class'] = Variable<String>(allotmentClass);
+    if (!nullToAbsent || accountCode != null) {
+      map['account_code'] = Variable<String>(accountCode);
+    }
+    map['modification_amount'] = Variable<double>(modificationAmount);
+    map['modification_date'] = Variable<String>(modificationDate);
+    return map;
+  }
+
+  BudgetModificationsCompanion toCompanion(bool nullToAbsent) {
+    return BudgetModificationsCompanion(
+      id: Value(id),
+      allocationId: allocationId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(allocationId),
+      fiscalYear: Value(fiscalYear),
+      fundCode: Value(fundCode),
+      mfoProgram: Value(mfoProgram),
+      activityProject: Value(activityProject),
+      allotmentClass: Value(allotmentClass),
+      accountCode: accountCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountCode),
+      modificationAmount: Value(modificationAmount),
+      modificationDate: Value(modificationDate),
+    );
+  }
+
+  factory BudgetModification.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BudgetModification(
+      id: serializer.fromJson<int>(json['id']),
+      allocationId: serializer.fromJson<int?>(json['allocationId']),
+      fiscalYear: serializer.fromJson<String>(json['fiscalYear']),
+      fundCode: serializer.fromJson<String>(json['fundCode']),
+      mfoProgram: serializer.fromJson<String>(json['mfoProgram']),
+      activityProject: serializer.fromJson<String>(json['activityProject']),
+      allotmentClass: serializer.fromJson<String>(json['allotmentClass']),
+      accountCode: serializer.fromJson<String?>(json['accountCode']),
+      modificationAmount: serializer.fromJson<double>(
+        json['modificationAmount'],
+      ),
+      modificationDate: serializer.fromJson<String>(json['modificationDate']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'allocationId': serializer.toJson<int?>(allocationId),
+      'fiscalYear': serializer.toJson<String>(fiscalYear),
+      'fundCode': serializer.toJson<String>(fundCode),
+      'mfoProgram': serializer.toJson<String>(mfoProgram),
+      'activityProject': serializer.toJson<String>(activityProject),
+      'allotmentClass': serializer.toJson<String>(allotmentClass),
+      'accountCode': serializer.toJson<String?>(accountCode),
+      'modificationAmount': serializer.toJson<double>(modificationAmount),
+      'modificationDate': serializer.toJson<String>(modificationDate),
+    };
+  }
+
+  BudgetModification copyWith({
+    int? id,
+    Value<int?> allocationId = const Value.absent(),
+    String? fiscalYear,
+    String? fundCode,
+    String? mfoProgram,
+    String? activityProject,
+    String? allotmentClass,
+    Value<String?> accountCode = const Value.absent(),
+    double? modificationAmount,
+    String? modificationDate,
+  }) => BudgetModification(
+    id: id ?? this.id,
+    allocationId: allocationId.present ? allocationId.value : this.allocationId,
+    fiscalYear: fiscalYear ?? this.fiscalYear,
+    fundCode: fundCode ?? this.fundCode,
+    mfoProgram: mfoProgram ?? this.mfoProgram,
+    activityProject: activityProject ?? this.activityProject,
+    allotmentClass: allotmentClass ?? this.allotmentClass,
+    accountCode: accountCode.present ? accountCode.value : this.accountCode,
+    modificationAmount: modificationAmount ?? this.modificationAmount,
+    modificationDate: modificationDate ?? this.modificationDate,
+  );
+  BudgetModification copyWithCompanion(BudgetModificationsCompanion data) {
+    return BudgetModification(
+      id: data.id.present ? data.id.value : this.id,
+      allocationId: data.allocationId.present
+          ? data.allocationId.value
+          : this.allocationId,
+      fiscalYear: data.fiscalYear.present
+          ? data.fiscalYear.value
+          : this.fiscalYear,
+      fundCode: data.fundCode.present ? data.fundCode.value : this.fundCode,
+      mfoProgram: data.mfoProgram.present
+          ? data.mfoProgram.value
+          : this.mfoProgram,
+      activityProject: data.activityProject.present
+          ? data.activityProject.value
+          : this.activityProject,
+      allotmentClass: data.allotmentClass.present
+          ? data.allotmentClass.value
+          : this.allotmentClass,
+      accountCode: data.accountCode.present
+          ? data.accountCode.value
+          : this.accountCode,
+      modificationAmount: data.modificationAmount.present
+          ? data.modificationAmount.value
+          : this.modificationAmount,
+      modificationDate: data.modificationDate.present
+          ? data.modificationDate.value
+          : this.modificationDate,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetModification(')
+          ..write('id: $id, ')
+          ..write('allocationId: $allocationId, ')
+          ..write('fiscalYear: $fiscalYear, ')
+          ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
+          ..write('allotmentClass: $allotmentClass, ')
+          ..write('accountCode: $accountCode, ')
+          ..write('modificationAmount: $modificationAmount, ')
+          ..write('modificationDate: $modificationDate')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    allocationId,
+    fiscalYear,
+    fundCode,
+    mfoProgram,
+    activityProject,
+    allotmentClass,
+    accountCode,
+    modificationAmount,
+    modificationDate,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BudgetModification &&
+          other.id == this.id &&
+          other.allocationId == this.allocationId &&
+          other.fiscalYear == this.fiscalYear &&
+          other.fundCode == this.fundCode &&
+          other.mfoProgram == this.mfoProgram &&
+          other.activityProject == this.activityProject &&
+          other.allotmentClass == this.allotmentClass &&
+          other.accountCode == this.accountCode &&
+          other.modificationAmount == this.modificationAmount &&
+          other.modificationDate == this.modificationDate);
+}
+
+class BudgetModificationsCompanion extends UpdateCompanion<BudgetModification> {
+  final Value<int> id;
+  final Value<int?> allocationId;
+  final Value<String> fiscalYear;
+  final Value<String> fundCode;
+  final Value<String> mfoProgram;
+  final Value<String> activityProject;
+  final Value<String> allotmentClass;
+  final Value<String?> accountCode;
+  final Value<double> modificationAmount;
+  final Value<String> modificationDate;
+  const BudgetModificationsCompanion({
+    this.id = const Value.absent(),
+    this.allocationId = const Value.absent(),
+    this.fiscalYear = const Value.absent(),
+    this.fundCode = const Value.absent(),
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
+    this.allotmentClass = const Value.absent(),
+    this.accountCode = const Value.absent(),
+    this.modificationAmount = const Value.absent(),
+    this.modificationDate = const Value.absent(),
+  });
+  BudgetModificationsCompanion.insert({
+    this.id = const Value.absent(),
+    this.allocationId = const Value.absent(),
+    required String fiscalYear,
+    required String fundCode,
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
+    required String allotmentClass,
+    this.accountCode = const Value.absent(),
+    this.modificationAmount = const Value.absent(),
+    required String modificationDate,
+  }) : fiscalYear = Value(fiscalYear),
+       fundCode = Value(fundCode),
+       allotmentClass = Value(allotmentClass),
+       modificationDate = Value(modificationDate);
+  static Insertable<BudgetModification> custom({
+    Expression<int>? id,
+    Expression<int>? allocationId,
+    Expression<String>? fiscalYear,
+    Expression<String>? fundCode,
+    Expression<String>? mfoProgram,
+    Expression<String>? activityProject,
+    Expression<String>? allotmentClass,
+    Expression<String>? accountCode,
+    Expression<double>? modificationAmount,
+    Expression<String>? modificationDate,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (allocationId != null) 'allocation_id': allocationId,
+      if (fiscalYear != null) 'fiscal_year': fiscalYear,
+      if (fundCode != null) 'fund_code': fundCode,
+      if (mfoProgram != null) 'mfo_program': mfoProgram,
+      if (activityProject != null) 'activity_project': activityProject,
+      if (allotmentClass != null) 'allotment_class': allotmentClass,
+      if (accountCode != null) 'account_code': accountCode,
+      if (modificationAmount != null) 'modification_amount': modificationAmount,
+      if (modificationDate != null) 'modification_date': modificationDate,
+    });
+  }
+
+  BudgetModificationsCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? allocationId,
+    Value<String>? fiscalYear,
+    Value<String>? fundCode,
+    Value<String>? mfoProgram,
+    Value<String>? activityProject,
+    Value<String>? allotmentClass,
+    Value<String?>? accountCode,
+    Value<double>? modificationAmount,
+    Value<String>? modificationDate,
+  }) {
+    return BudgetModificationsCompanion(
+      id: id ?? this.id,
+      allocationId: allocationId ?? this.allocationId,
+      fiscalYear: fiscalYear ?? this.fiscalYear,
+      fundCode: fundCode ?? this.fundCode,
+      mfoProgram: mfoProgram ?? this.mfoProgram,
+      activityProject: activityProject ?? this.activityProject,
+      allotmentClass: allotmentClass ?? this.allotmentClass,
+      accountCode: accountCode ?? this.accountCode,
+      modificationAmount: modificationAmount ?? this.modificationAmount,
+      modificationDate: modificationDate ?? this.modificationDate,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (allocationId.present) {
+      map['allocation_id'] = Variable<int>(allocationId.value);
+    }
+    if (fiscalYear.present) {
+      map['fiscal_year'] = Variable<String>(fiscalYear.value);
+    }
+    if (fundCode.present) {
+      map['fund_code'] = Variable<String>(fundCode.value);
+    }
+    if (mfoProgram.present) {
+      map['mfo_program'] = Variable<String>(mfoProgram.value);
+    }
+    if (activityProject.present) {
+      map['activity_project'] = Variable<String>(activityProject.value);
+    }
+    if (allotmentClass.present) {
+      map['allotment_class'] = Variable<String>(allotmentClass.value);
+    }
+    if (accountCode.present) {
+      map['account_code'] = Variable<String>(accountCode.value);
+    }
+    if (modificationAmount.present) {
+      map['modification_amount'] = Variable<double>(modificationAmount.value);
+    }
+    if (modificationDate.present) {
+      map['modification_date'] = Variable<String>(modificationDate.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetModificationsCompanion(')
+          ..write('id: $id, ')
+          ..write('allocationId: $allocationId, ')
+          ..write('fiscalYear: $fiscalYear, ')
+          ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
+          ..write('allotmentClass: $allotmentClass, ')
+          ..write('accountCode: $accountCode, ')
+          ..write('modificationAmount: $modificationAmount, ')
+          ..write('modificationDate: $modificationDate')
           ..write(')'))
         .toString();
   }
@@ -1334,6 +2124,30 @@ class $ObligationRegistriesTable extends ObligationRegistries
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES fund_sources (fund_code)',
     ),
+  );
+  static const VerificationMeta _mfoProgramMeta = const VerificationMeta(
+    'mfoProgram',
+  );
+  @override
+  late final GeneratedColumn<String> mfoProgram = GeneratedColumn<String>(
+    'mfo_program',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('A.I General Administration and Support'),
+  );
+  static const VerificationMeta _activityProjectMeta = const VerificationMeta(
+    'activityProject',
+  );
+  @override
+  late final GeneratedColumn<String> activityProject = GeneratedColumn<String>(
+    'activity_project',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('General Operations'),
   );
   static const VerificationMeta _accountCodeMeta = const VerificationMeta(
     'accountCode',
@@ -1414,6 +2228,18 @@ class $ObligationRegistriesTable extends ObligationRegistries
         requiredDuringInsert: false,
         defaultValue: const Constant(0.0),
       );
+  static const VerificationMeta _dueAndDemandableMeta = const VerificationMeta(
+    'dueAndDemandable',
+  );
+  @override
+  late final GeneratedColumn<double> dueAndDemandable = GeneratedColumn<double>(
+    'due_and_demandable',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
   static const VerificationMeta _attachmentFilenameMeta =
       const VerificationMeta('attachmentFilename');
   @override
@@ -1442,6 +2268,8 @@ class $ObligationRegistriesTable extends ObligationRegistries
     obrNo,
     date,
     fundCode,
+    mfoProgram,
+    activityProject,
     accountCode,
     allotmentClassification,
     payee,
@@ -1449,6 +2277,7 @@ class $ObligationRegistriesTable extends ObligationRegistries
     description,
     grossAmount,
     disbursementAmount,
+    dueAndDemandable,
     attachmentFilename,
     attachmentLocalPath,
   ];
@@ -1490,6 +2319,21 @@ class $ObligationRegistriesTable extends ObligationRegistries
       );
     } else if (isInserting) {
       context.missing(_fundCodeMeta);
+    }
+    if (data.containsKey('mfo_program')) {
+      context.handle(
+        _mfoProgramMeta,
+        mfoProgram.isAcceptableOrUnknown(data['mfo_program']!, _mfoProgramMeta),
+      );
+    }
+    if (data.containsKey('activity_project')) {
+      context.handle(
+        _activityProjectMeta,
+        activityProject.isAcceptableOrUnknown(
+          data['activity_project']!,
+          _activityProjectMeta,
+        ),
+      );
     }
     if (data.containsKey('account_code')) {
       context.handle(
@@ -1558,6 +2402,15 @@ class $ObligationRegistriesTable extends ObligationRegistries
         ),
       );
     }
+    if (data.containsKey('due_and_demandable')) {
+      context.handle(
+        _dueAndDemandableMeta,
+        dueAndDemandable.isAcceptableOrUnknown(
+          data['due_and_demandable']!,
+          _dueAndDemandableMeta,
+        ),
+      );
+    }
     if (data.containsKey('attachment_filename')) {
       context.handle(
         _attachmentFilenameMeta,
@@ -1601,6 +2454,14 @@ class $ObligationRegistriesTable extends ObligationRegistries
         DriftSqlType.string,
         data['${effectivePrefix}fund_code'],
       )!,
+      mfoProgram: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mfo_program'],
+      )!,
+      activityProject: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_project'],
+      )!,
       accountCode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}account_code'],
@@ -1629,6 +2490,10 @@ class $ObligationRegistriesTable extends ObligationRegistries
         DriftSqlType.double,
         data['${effectivePrefix}disbursement_amount'],
       )!,
+      dueAndDemandable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}due_and_demandable'],
+      )!,
       attachmentFilename: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}attachment_filename'],
@@ -1652,6 +2517,8 @@ class ObligationRegistry extends DataClass
   final String obrNo;
   final String date;
   final String fundCode;
+  final String mfoProgram;
+  final String activityProject;
   final String accountCode;
   final String allotmentClassification;
   final String payee;
@@ -1659,6 +2526,7 @@ class ObligationRegistry extends DataClass
   final String? description;
   final double grossAmount;
   final double disbursementAmount;
+  final double dueAndDemandable;
   final String? attachmentFilename;
   final String? attachmentLocalPath;
   const ObligationRegistry({
@@ -1666,6 +2534,8 @@ class ObligationRegistry extends DataClass
     required this.obrNo,
     required this.date,
     required this.fundCode,
+    required this.mfoProgram,
+    required this.activityProject,
     required this.accountCode,
     required this.allotmentClassification,
     required this.payee,
@@ -1673,6 +2543,7 @@ class ObligationRegistry extends DataClass
     this.description,
     required this.grossAmount,
     required this.disbursementAmount,
+    required this.dueAndDemandable,
     this.attachmentFilename,
     this.attachmentLocalPath,
   });
@@ -1683,6 +2554,8 @@ class ObligationRegistry extends DataClass
     map['obr_no'] = Variable<String>(obrNo);
     map['date'] = Variable<String>(date);
     map['fund_code'] = Variable<String>(fundCode);
+    map['mfo_program'] = Variable<String>(mfoProgram);
+    map['activity_project'] = Variable<String>(activityProject);
     map['account_code'] = Variable<String>(accountCode);
     map['allotment_classification'] = Variable<String>(allotmentClassification);
     map['payee'] = Variable<String>(payee);
@@ -1692,6 +2565,7 @@ class ObligationRegistry extends DataClass
     }
     map['gross_amount'] = Variable<double>(grossAmount);
     map['disbursement_amount'] = Variable<double>(disbursementAmount);
+    map['due_and_demandable'] = Variable<double>(dueAndDemandable);
     if (!nullToAbsent || attachmentFilename != null) {
       map['attachment_filename'] = Variable<String>(attachmentFilename);
     }
@@ -1707,6 +2581,8 @@ class ObligationRegistry extends DataClass
       obrNo: Value(obrNo),
       date: Value(date),
       fundCode: Value(fundCode),
+      mfoProgram: Value(mfoProgram),
+      activityProject: Value(activityProject),
       accountCode: Value(accountCode),
       allotmentClassification: Value(allotmentClassification),
       payee: Value(payee),
@@ -1716,6 +2592,7 @@ class ObligationRegistry extends DataClass
           : Value(description),
       grossAmount: Value(grossAmount),
       disbursementAmount: Value(disbursementAmount),
+      dueAndDemandable: Value(dueAndDemandable),
       attachmentFilename: attachmentFilename == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentFilename),
@@ -1735,6 +2612,8 @@ class ObligationRegistry extends DataClass
       obrNo: serializer.fromJson<String>(json['obrNo']),
       date: serializer.fromJson<String>(json['date']),
       fundCode: serializer.fromJson<String>(json['fundCode']),
+      mfoProgram: serializer.fromJson<String>(json['mfoProgram']),
+      activityProject: serializer.fromJson<String>(json['activityProject']),
       accountCode: serializer.fromJson<String>(json['accountCode']),
       allotmentClassification: serializer.fromJson<String>(
         json['allotmentClassification'],
@@ -1746,6 +2625,7 @@ class ObligationRegistry extends DataClass
       disbursementAmount: serializer.fromJson<double>(
         json['disbursementAmount'],
       ),
+      dueAndDemandable: serializer.fromJson<double>(json['dueAndDemandable']),
       attachmentFilename: serializer.fromJson<String?>(
         json['attachmentFilename'],
       ),
@@ -1762,6 +2642,8 @@ class ObligationRegistry extends DataClass
       'obrNo': serializer.toJson<String>(obrNo),
       'date': serializer.toJson<String>(date),
       'fundCode': serializer.toJson<String>(fundCode),
+      'mfoProgram': serializer.toJson<String>(mfoProgram),
+      'activityProject': serializer.toJson<String>(activityProject),
       'accountCode': serializer.toJson<String>(accountCode),
       'allotmentClassification': serializer.toJson<String>(
         allotmentClassification,
@@ -1771,6 +2653,7 @@ class ObligationRegistry extends DataClass
       'description': serializer.toJson<String?>(description),
       'grossAmount': serializer.toJson<double>(grossAmount),
       'disbursementAmount': serializer.toJson<double>(disbursementAmount),
+      'dueAndDemandable': serializer.toJson<double>(dueAndDemandable),
       'attachmentFilename': serializer.toJson<String?>(attachmentFilename),
       'attachmentLocalPath': serializer.toJson<String?>(attachmentLocalPath),
     };
@@ -1781,6 +2664,8 @@ class ObligationRegistry extends DataClass
     String? obrNo,
     String? date,
     String? fundCode,
+    String? mfoProgram,
+    String? activityProject,
     String? accountCode,
     String? allotmentClassification,
     String? payee,
@@ -1788,6 +2673,7 @@ class ObligationRegistry extends DataClass
     Value<String?> description = const Value.absent(),
     double? grossAmount,
     double? disbursementAmount,
+    double? dueAndDemandable,
     Value<String?> attachmentFilename = const Value.absent(),
     Value<String?> attachmentLocalPath = const Value.absent(),
   }) => ObligationRegistry(
@@ -1795,6 +2681,8 @@ class ObligationRegistry extends DataClass
     obrNo: obrNo ?? this.obrNo,
     date: date ?? this.date,
     fundCode: fundCode ?? this.fundCode,
+    mfoProgram: mfoProgram ?? this.mfoProgram,
+    activityProject: activityProject ?? this.activityProject,
     accountCode: accountCode ?? this.accountCode,
     allotmentClassification:
         allotmentClassification ?? this.allotmentClassification,
@@ -1803,6 +2691,7 @@ class ObligationRegistry extends DataClass
     description: description.present ? description.value : this.description,
     grossAmount: grossAmount ?? this.grossAmount,
     disbursementAmount: disbursementAmount ?? this.disbursementAmount,
+    dueAndDemandable: dueAndDemandable ?? this.dueAndDemandable,
     attachmentFilename: attachmentFilename.present
         ? attachmentFilename.value
         : this.attachmentFilename,
@@ -1816,6 +2705,12 @@ class ObligationRegistry extends DataClass
       obrNo: data.obrNo.present ? data.obrNo.value : this.obrNo,
       date: data.date.present ? data.date.value : this.date,
       fundCode: data.fundCode.present ? data.fundCode.value : this.fundCode,
+      mfoProgram: data.mfoProgram.present
+          ? data.mfoProgram.value
+          : this.mfoProgram,
+      activityProject: data.activityProject.present
+          ? data.activityProject.value
+          : this.activityProject,
       accountCode: data.accountCode.present
           ? data.accountCode.value
           : this.accountCode,
@@ -1835,6 +2730,9 @@ class ObligationRegistry extends DataClass
       disbursementAmount: data.disbursementAmount.present
           ? data.disbursementAmount.value
           : this.disbursementAmount,
+      dueAndDemandable: data.dueAndDemandable.present
+          ? data.dueAndDemandable.value
+          : this.dueAndDemandable,
       attachmentFilename: data.attachmentFilename.present
           ? data.attachmentFilename.value
           : this.attachmentFilename,
@@ -1851,6 +2749,8 @@ class ObligationRegistry extends DataClass
           ..write('obrNo: $obrNo, ')
           ..write('date: $date, ')
           ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
           ..write('accountCode: $accountCode, ')
           ..write('allotmentClassification: $allotmentClassification, ')
           ..write('payee: $payee, ')
@@ -1858,6 +2758,7 @@ class ObligationRegistry extends DataClass
           ..write('description: $description, ')
           ..write('grossAmount: $grossAmount, ')
           ..write('disbursementAmount: $disbursementAmount, ')
+          ..write('dueAndDemandable: $dueAndDemandable, ')
           ..write('attachmentFilename: $attachmentFilename, ')
           ..write('attachmentLocalPath: $attachmentLocalPath')
           ..write(')'))
@@ -1870,6 +2771,8 @@ class ObligationRegistry extends DataClass
     obrNo,
     date,
     fundCode,
+    mfoProgram,
+    activityProject,
     accountCode,
     allotmentClassification,
     payee,
@@ -1877,6 +2780,7 @@ class ObligationRegistry extends DataClass
     description,
     grossAmount,
     disbursementAmount,
+    dueAndDemandable,
     attachmentFilename,
     attachmentLocalPath,
   );
@@ -1888,6 +2792,8 @@ class ObligationRegistry extends DataClass
           other.obrNo == this.obrNo &&
           other.date == this.date &&
           other.fundCode == this.fundCode &&
+          other.mfoProgram == this.mfoProgram &&
+          other.activityProject == this.activityProject &&
           other.accountCode == this.accountCode &&
           other.allotmentClassification == this.allotmentClassification &&
           other.payee == this.payee &&
@@ -1895,6 +2801,7 @@ class ObligationRegistry extends DataClass
           other.description == this.description &&
           other.grossAmount == this.grossAmount &&
           other.disbursementAmount == this.disbursementAmount &&
+          other.dueAndDemandable == this.dueAndDemandable &&
           other.attachmentFilename == this.attachmentFilename &&
           other.attachmentLocalPath == this.attachmentLocalPath);
 }
@@ -1905,6 +2812,8 @@ class ObligationRegistriesCompanion
   final Value<String> obrNo;
   final Value<String> date;
   final Value<String> fundCode;
+  final Value<String> mfoProgram;
+  final Value<String> activityProject;
   final Value<String> accountCode;
   final Value<String> allotmentClassification;
   final Value<String> payee;
@@ -1912,6 +2821,7 @@ class ObligationRegistriesCompanion
   final Value<String?> description;
   final Value<double> grossAmount;
   final Value<double> disbursementAmount;
+  final Value<double> dueAndDemandable;
   final Value<String?> attachmentFilename;
   final Value<String?> attachmentLocalPath;
   const ObligationRegistriesCompanion({
@@ -1919,6 +2829,8 @@ class ObligationRegistriesCompanion
     this.obrNo = const Value.absent(),
     this.date = const Value.absent(),
     this.fundCode = const Value.absent(),
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
     this.accountCode = const Value.absent(),
     this.allotmentClassification = const Value.absent(),
     this.payee = const Value.absent(),
@@ -1926,6 +2838,7 @@ class ObligationRegistriesCompanion
     this.description = const Value.absent(),
     this.grossAmount = const Value.absent(),
     this.disbursementAmount = const Value.absent(),
+    this.dueAndDemandable = const Value.absent(),
     this.attachmentFilename = const Value.absent(),
     this.attachmentLocalPath = const Value.absent(),
   });
@@ -1934,6 +2847,8 @@ class ObligationRegistriesCompanion
     required String obrNo,
     required String date,
     required String fundCode,
+    this.mfoProgram = const Value.absent(),
+    this.activityProject = const Value.absent(),
     required String accountCode,
     required String allotmentClassification,
     required String payee,
@@ -1941,6 +2856,7 @@ class ObligationRegistriesCompanion
     this.description = const Value.absent(),
     required double grossAmount,
     this.disbursementAmount = const Value.absent(),
+    this.dueAndDemandable = const Value.absent(),
     this.attachmentFilename = const Value.absent(),
     this.attachmentLocalPath = const Value.absent(),
   }) : obrNo = Value(obrNo),
@@ -1956,6 +2872,8 @@ class ObligationRegistriesCompanion
     Expression<String>? obrNo,
     Expression<String>? date,
     Expression<String>? fundCode,
+    Expression<String>? mfoProgram,
+    Expression<String>? activityProject,
     Expression<String>? accountCode,
     Expression<String>? allotmentClassification,
     Expression<String>? payee,
@@ -1963,6 +2881,7 @@ class ObligationRegistriesCompanion
     Expression<String>? description,
     Expression<double>? grossAmount,
     Expression<double>? disbursementAmount,
+    Expression<double>? dueAndDemandable,
     Expression<String>? attachmentFilename,
     Expression<String>? attachmentLocalPath,
   }) {
@@ -1971,6 +2890,8 @@ class ObligationRegistriesCompanion
       if (obrNo != null) 'obr_no': obrNo,
       if (date != null) 'date': date,
       if (fundCode != null) 'fund_code': fundCode,
+      if (mfoProgram != null) 'mfo_program': mfoProgram,
+      if (activityProject != null) 'activity_project': activityProject,
       if (accountCode != null) 'account_code': accountCode,
       if (allotmentClassification != null)
         'allotment_classification': allotmentClassification,
@@ -1979,6 +2900,7 @@ class ObligationRegistriesCompanion
       if (description != null) 'description': description,
       if (grossAmount != null) 'gross_amount': grossAmount,
       if (disbursementAmount != null) 'disbursement_amount': disbursementAmount,
+      if (dueAndDemandable != null) 'due_and_demandable': dueAndDemandable,
       if (attachmentFilename != null) 'attachment_filename': attachmentFilename,
       if (attachmentLocalPath != null)
         'attachment_local_path': attachmentLocalPath,
@@ -1990,6 +2912,8 @@ class ObligationRegistriesCompanion
     Value<String>? obrNo,
     Value<String>? date,
     Value<String>? fundCode,
+    Value<String>? mfoProgram,
+    Value<String>? activityProject,
     Value<String>? accountCode,
     Value<String>? allotmentClassification,
     Value<String>? payee,
@@ -1997,6 +2921,7 @@ class ObligationRegistriesCompanion
     Value<String?>? description,
     Value<double>? grossAmount,
     Value<double>? disbursementAmount,
+    Value<double>? dueAndDemandable,
     Value<String?>? attachmentFilename,
     Value<String?>? attachmentLocalPath,
   }) {
@@ -2005,6 +2930,8 @@ class ObligationRegistriesCompanion
       obrNo: obrNo ?? this.obrNo,
       date: date ?? this.date,
       fundCode: fundCode ?? this.fundCode,
+      mfoProgram: mfoProgram ?? this.mfoProgram,
+      activityProject: activityProject ?? this.activityProject,
       accountCode: accountCode ?? this.accountCode,
       allotmentClassification:
           allotmentClassification ?? this.allotmentClassification,
@@ -2013,6 +2940,7 @@ class ObligationRegistriesCompanion
       description: description ?? this.description,
       grossAmount: grossAmount ?? this.grossAmount,
       disbursementAmount: disbursementAmount ?? this.disbursementAmount,
+      dueAndDemandable: dueAndDemandable ?? this.dueAndDemandable,
       attachmentFilename: attachmentFilename ?? this.attachmentFilename,
       attachmentLocalPath: attachmentLocalPath ?? this.attachmentLocalPath,
     );
@@ -2032,6 +2960,12 @@ class ObligationRegistriesCompanion
     }
     if (fundCode.present) {
       map['fund_code'] = Variable<String>(fundCode.value);
+    }
+    if (mfoProgram.present) {
+      map['mfo_program'] = Variable<String>(mfoProgram.value);
+    }
+    if (activityProject.present) {
+      map['activity_project'] = Variable<String>(activityProject.value);
     }
     if (accountCode.present) {
       map['account_code'] = Variable<String>(accountCode.value);
@@ -2056,6 +2990,9 @@ class ObligationRegistriesCompanion
     if (disbursementAmount.present) {
       map['disbursement_amount'] = Variable<double>(disbursementAmount.value);
     }
+    if (dueAndDemandable.present) {
+      map['due_and_demandable'] = Variable<double>(dueAndDemandable.value);
+    }
     if (attachmentFilename.present) {
       map['attachment_filename'] = Variable<String>(attachmentFilename.value);
     }
@@ -2074,6 +3011,8 @@ class ObligationRegistriesCompanion
           ..write('obrNo: $obrNo, ')
           ..write('date: $date, ')
           ..write('fundCode: $fundCode, ')
+          ..write('mfoProgram: $mfoProgram, ')
+          ..write('activityProject: $activityProject, ')
           ..write('accountCode: $accountCode, ')
           ..write('allotmentClassification: $allotmentClassification, ')
           ..write('payee: $payee, ')
@@ -2081,6 +3020,7 @@ class ObligationRegistriesCompanion
           ..write('description: $description, ')
           ..write('grossAmount: $grossAmount, ')
           ..write('disbursementAmount: $disbursementAmount, ')
+          ..write('dueAndDemandable: $dueAndDemandable, ')
           ..write('attachmentFilename: $attachmentFilename, ')
           ..write('attachmentLocalPath: $attachmentLocalPath')
           ..write(')'))
@@ -2095,6 +3035,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UacsCodesTable uacsCodes = $UacsCodesTable(this);
   late final $BudgetAllocationsTable budgetAllocations =
       $BudgetAllocationsTable(this);
+  late final $BudgetModificationsTable budgetModifications =
+      $BudgetModificationsTable(this);
   late final $ObligationRegistriesTable obligationRegistries =
       $ObligationRegistriesTable(this);
   @override
@@ -2105,8 +3047,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     fundSources,
     uacsCodes,
     budgetAllocations,
+    budgetModifications,
     obligationRegistries,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'budget_allocations',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('budget_modifications', kind: UpdateKind.update)],
+    ),
+  ]);
 }
 
 typedef $$FundSourcesTableCreateCompanionBuilder =
@@ -2147,6 +3100,34 @@ final class $$FundSourcesTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _budgetAllocationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $BudgetModificationsTable,
+    List<BudgetModification>
+  >
+  _budgetModificationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.budgetModifications,
+        aliasName: 'fund_sources__fund_code__budget_modifications__fund_code',
+      );
+
+  $$BudgetModificationsTableProcessedTableManager get budgetModificationsRefs {
+    final manager =
+        $$BudgetModificationsTableTableManager(
+          $_db,
+          $_db.budgetModifications,
+        ).filter(
+          (f) =>
+              f.fundCode.fundCode.sqlEquals($_itemColumn<String>('fund_code')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _budgetModificationsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -2223,6 +3204,31 @@ class $$FundSourcesTableFilterComposer
           }) => $$BudgetAllocationsTableFilterComposer(
             $db: $db,
             $table: $db.budgetAllocations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> budgetModificationsRefs(
+    Expression<bool> Function($$BudgetModificationsTableFilterComposer f) f,
+  ) {
+    final $$BudgetModificationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundCode,
+      referencedTable: $db.budgetModifications,
+      getReferencedColumn: (t) => t.fundCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetModificationsTableFilterComposer(
+            $db: $db,
+            $table: $db.budgetModifications,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2329,6 +3335,32 @@ class $$FundSourcesTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> budgetModificationsRefs<T extends Object>(
+    Expression<T> Function($$BudgetModificationsTableAnnotationComposer a) f,
+  ) {
+    final $$BudgetModificationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.fundCode,
+          referencedTable: $db.budgetModifications,
+          getReferencedColumn: (t) => t.fundCode,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BudgetModificationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.budgetModifications,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> obligationRegistriesRefs<T extends Object>(
     Expression<T> Function($$ObligationRegistriesTableAnnotationComposer a) f,
   ) {
@@ -2371,6 +3403,7 @@ class $$FundSourcesTableTableManager
           FundSource,
           PrefetchHooks Function({
             bool budgetAllocationsRefs,
+            bool budgetModificationsRefs,
             bool obligationRegistriesRefs,
           })
         > {
@@ -2420,12 +3453,14 @@ class $$FundSourcesTableTableManager
           prefetchHooksCallback:
               ({
                 budgetAllocationsRefs = false,
+                budgetModificationsRefs = false,
                 obligationRegistriesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (budgetAllocationsRefs) db.budgetAllocations,
+                    if (budgetModificationsRefs) db.budgetModifications,
                     if (obligationRegistriesRefs) db.obligationRegistries,
                   ],
                   addJoins: null,
@@ -2447,6 +3482,26 @@ class $$FundSourcesTableTableManager
                                 table,
                                 p0,
                               ).budgetAllocationsRefs,
+                          currentColumn: 'fund_code',
+                          referencedColumn: 'fund_code',
+                          typedResults: items,
+                        ),
+                      if (budgetModificationsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          FundSource,
+                          $FundSourcesTable,
+                          BudgetModification,
+                          $BudgetModificationsTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FundSourcesTableReferences
+                              ._budgetModificationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FundSourcesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).budgetModificationsRefs,
                           currentColumn: 'fund_code',
                           referencedColumn: 'fund_code',
                           typedResults: items,
@@ -2493,6 +3548,7 @@ typedef $$FundSourcesTableProcessedTableManager =
       FundSource,
       PrefetchHooks Function({
         bool budgetAllocationsRefs,
+        bool budgetModificationsRefs,
         bool obligationRegistriesRefs,
       })
     >;
@@ -2535,6 +3591,36 @@ final class $$UacsCodesTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _budgetAllocationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $BudgetModificationsTable,
+    List<BudgetModification>
+  >
+  _budgetModificationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.budgetModifications,
+        aliasName:
+            'uacs_codes__account_code__budget_modifications__account_code',
+      );
+
+  $$BudgetModificationsTableProcessedTableManager get budgetModificationsRefs {
+    final manager =
+        $$BudgetModificationsTableTableManager(
+          $_db,
+          $_db.budgetModifications,
+        ).filter(
+          (f) => f.accountCode.accountCode.sqlEquals(
+            $_itemColumn<String>('account_code')!,
+          ),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _budgetModificationsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -2613,6 +3699,31 @@ class $$UacsCodesTableFilterComposer
           }) => $$BudgetAllocationsTableFilterComposer(
             $db: $db,
             $table: $db.budgetAllocations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> budgetModificationsRefs(
+    Expression<bool> Function($$BudgetModificationsTableFilterComposer f) f,
+  ) {
+    final $$BudgetModificationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountCode,
+      referencedTable: $db.budgetModifications,
+      getReferencedColumn: (t) => t.accountCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetModificationsTableFilterComposer(
+            $db: $db,
+            $table: $db.budgetModifications,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2723,6 +3834,32 @@ class $$UacsCodesTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> budgetModificationsRefs<T extends Object>(
+    Expression<T> Function($$BudgetModificationsTableAnnotationComposer a) f,
+  ) {
+    final $$BudgetModificationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.accountCode,
+          referencedTable: $db.budgetModifications,
+          getReferencedColumn: (t) => t.accountCode,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BudgetModificationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.budgetModifications,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> obligationRegistriesRefs<T extends Object>(
     Expression<T> Function($$ObligationRegistriesTableAnnotationComposer a) f,
   ) {
@@ -2765,6 +3902,7 @@ class $$UacsCodesTableTableManager
           UacsCode,
           PrefetchHooks Function({
             bool budgetAllocationsRefs,
+            bool budgetModificationsRefs,
             bool obligationRegistriesRefs,
           })
         > {
@@ -2814,12 +3952,14 @@ class $$UacsCodesTableTableManager
           prefetchHooksCallback:
               ({
                 budgetAllocationsRefs = false,
+                budgetModificationsRefs = false,
                 obligationRegistriesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (budgetAllocationsRefs) db.budgetAllocations,
+                    if (budgetModificationsRefs) db.budgetModifications,
                     if (obligationRegistriesRefs) db.obligationRegistries,
                   ],
                   addJoins: null,
@@ -2841,6 +3981,26 @@ class $$UacsCodesTableTableManager
                                 table,
                                 p0,
                               ).budgetAllocationsRefs,
+                          currentColumn: 'account_code',
+                          referencedColumn: 'account_code',
+                          typedResults: items,
+                        ),
+                      if (budgetModificationsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          UacsCode,
+                          $UacsCodesTable,
+                          BudgetModification,
+                          $BudgetModificationsTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$UacsCodesTableReferences
+                              ._budgetModificationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$UacsCodesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).budgetModificationsRefs,
                           currentColumn: 'account_code',
                           referencedColumn: 'account_code',
                           typedResults: items,
@@ -2887,6 +4047,7 @@ typedef $$UacsCodesTableProcessedTableManager =
       UacsCode,
       PrefetchHooks Function({
         bool budgetAllocationsRefs,
+        bool budgetModificationsRefs,
         bool obligationRegistriesRefs,
       })
     >;
@@ -2895,8 +4056,11 @@ typedef $$BudgetAllocationsTableCreateCompanionBuilder =
       Value<int> id,
       required String fiscalYear,
       required String fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
       required String allotmentClass,
       Value<String?> accountCode,
+      Value<double> beginningBalance,
       Value<double> authorizedAppropriations,
       Value<double> adjustmentsAppropriations,
       Value<double> allotmentReceived,
@@ -2909,8 +4073,11 @@ typedef $$BudgetAllocationsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> fiscalYear,
       Value<String> fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
       Value<String> allotmentClass,
       Value<String?> accountCode,
+      Value<double> beginningBalance,
       Value<double> authorizedAppropriations,
       Value<double> adjustmentsAppropriations,
       Value<double> allotmentReceived,
@@ -2967,6 +4134,31 @@ final class $$BudgetAllocationsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<
+    $BudgetModificationsTable,
+    List<BudgetModification>
+  >
+  _budgetModificationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.budgetModifications,
+        aliasName:
+            'budget_allocations__id__budget_modifications__allocation_id',
+      );
+
+  $$BudgetModificationsTableProcessedTableManager get budgetModificationsRefs {
+    final manager = $$BudgetModificationsTableTableManager(
+      $_db,
+      $_db.budgetModifications,
+    ).filter((f) => f.allocationId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _budgetModificationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$BudgetAllocationsTableFilterComposer
@@ -2988,8 +4180,23 @@ class $$BudgetAllocationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get allotmentClass => $composableBuilder(
     column: $table.allotmentClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get beginningBalance => $composableBuilder(
+    column: $table.beginningBalance,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3068,6 +4275,31 @@ class $$BudgetAllocationsTableFilterComposer
     );
     return composer;
   }
+
+  Expression<bool> budgetModificationsRefs(
+    Expression<bool> Function($$BudgetModificationsTableFilterComposer f) f,
+  ) {
+    final $$BudgetModificationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.budgetModifications,
+      getReferencedColumn: (t) => t.allocationId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetModificationsTableFilterComposer(
+            $db: $db,
+            $table: $db.budgetModifications,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BudgetAllocationsTableOrderingComposer
@@ -3089,8 +4321,23 @@ class $$BudgetAllocationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get allotmentClass => $composableBuilder(
     column: $table.allotmentClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get beginningBalance => $composableBuilder(
+    column: $table.beginningBalance,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3188,8 +4435,23 @@ class $$BudgetAllocationsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get allotmentClass => $composableBuilder(
     column: $table.allotmentClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get beginningBalance => $composableBuilder(
+    column: $table.beginningBalance,
     builder: (column) => column,
   );
 
@@ -3266,6 +4528,32 @@ class $$BudgetAllocationsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> budgetModificationsRefs<T extends Object>(
+    Expression<T> Function($$BudgetModificationsTableAnnotationComposer a) f,
+  ) {
+    final $$BudgetModificationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.budgetModifications,
+          getReferencedColumn: (t) => t.allocationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BudgetModificationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.budgetModifications,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$BudgetAllocationsTableTableManager
@@ -3281,7 +4569,11 @@ class $$BudgetAllocationsTableTableManager
           $$BudgetAllocationsTableUpdateCompanionBuilder,
           (BudgetAllocation, $$BudgetAllocationsTableReferences),
           BudgetAllocation,
-          PrefetchHooks Function({bool fundCode, bool accountCode})
+          PrefetchHooks Function({
+            bool fundCode,
+            bool accountCode,
+            bool budgetModificationsRefs,
+          })
         > {
   $$BudgetAllocationsTableTableManager(
     _$AppDatabase db,
@@ -3304,8 +4596,11 @@ class $$BudgetAllocationsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> fiscalYear = const Value.absent(),
                 Value<String> fundCode = const Value.absent(),
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
                 Value<String> allotmentClass = const Value.absent(),
                 Value<String?> accountCode = const Value.absent(),
+                Value<double> beginningBalance = const Value.absent(),
                 Value<double> authorizedAppropriations = const Value.absent(),
                 Value<double> adjustmentsAppropriations = const Value.absent(),
                 Value<double> allotmentReceived = const Value.absent(),
@@ -3316,8 +4611,11 @@ class $$BudgetAllocationsTableTableManager
                 id: id,
                 fiscalYear: fiscalYear,
                 fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
                 allotmentClass: allotmentClass,
                 accountCode: accountCode,
+                beginningBalance: beginningBalance,
                 authorizedAppropriations: authorizedAppropriations,
                 adjustmentsAppropriations: adjustmentsAppropriations,
                 allotmentReceived: allotmentReceived,
@@ -3330,8 +4628,11 @@ class $$BudgetAllocationsTableTableManager
                 Value<int> id = const Value.absent(),
                 required String fiscalYear,
                 required String fundCode,
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
                 required String allotmentClass,
                 Value<String?> accountCode = const Value.absent(),
+                Value<double> beginningBalance = const Value.absent(),
                 Value<double> authorizedAppropriations = const Value.absent(),
                 Value<double> adjustmentsAppropriations = const Value.absent(),
                 Value<double> allotmentReceived = const Value.absent(),
@@ -3342,8 +4643,11 @@ class $$BudgetAllocationsTableTableManager
                 id: id,
                 fiscalYear: fiscalYear,
                 fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
                 allotmentClass: allotmentClass,
                 accountCode: accountCode,
+                beginningBalance: beginningBalance,
                 authorizedAppropriations: authorizedAppropriations,
                 adjustmentsAppropriations: adjustmentsAppropriations,
                 allotmentReceived: allotmentReceived,
@@ -3359,64 +4663,92 @@ class $$BudgetAllocationsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({fundCode = false, accountCode = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (fundCode) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.fundCode,
-                                referencedTable:
-                                    $$BudgetAllocationsTableReferences
-                                        ._fundCodeTable(db),
-                                referencedColumn:
-                                    $$BudgetAllocationsTableReferences
-                                        ._fundCodeTable(db)
-                                        .fundCode,
-                              )
-                              as T;
-                    }
-                    if (accountCode) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountCode,
-                                referencedTable:
-                                    $$BudgetAllocationsTableReferences
-                                        ._accountCodeTable(db),
-                                referencedColumn:
-                                    $$BudgetAllocationsTableReferences
-                                        ._accountCodeTable(db)
-                                        .accountCode,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                fundCode = false,
+                accountCode = false,
+                budgetModificationsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (budgetModificationsRefs) db.budgetModifications,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (fundCode) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.fundCode,
+                                    referencedTable:
+                                        $$BudgetAllocationsTableReferences
+                                            ._fundCodeTable(db),
+                                    referencedColumn:
+                                        $$BudgetAllocationsTableReferences
+                                            ._fundCodeTable(db)
+                                            .fundCode,
+                                  )
+                                  as T;
+                        }
+                        if (accountCode) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountCode,
+                                    referencedTable:
+                                        $$BudgetAllocationsTableReferences
+                                            ._accountCodeTable(db),
+                                    referencedColumn:
+                                        $$BudgetAllocationsTableReferences
+                                            ._accountCodeTable(db)
+                                            .accountCode,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (budgetModificationsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          BudgetAllocation,
+                          $BudgetAllocationsTable,
+                          BudgetModification,
+                          $BudgetModificationsTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BudgetAllocationsTableReferences
+                              ._budgetModificationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BudgetAllocationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).budgetModificationsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'allocation_id',
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -3433,7 +4765,640 @@ typedef $$BudgetAllocationsTableProcessedTableManager =
       $$BudgetAllocationsTableUpdateCompanionBuilder,
       (BudgetAllocation, $$BudgetAllocationsTableReferences),
       BudgetAllocation,
-      PrefetchHooks Function({bool fundCode, bool accountCode})
+      PrefetchHooks Function({
+        bool fundCode,
+        bool accountCode,
+        bool budgetModificationsRefs,
+      })
+    >;
+typedef $$BudgetModificationsTableCreateCompanionBuilder =
+    BudgetModificationsCompanion Function({
+      Value<int> id,
+      Value<int?> allocationId,
+      required String fiscalYear,
+      required String fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
+      required String allotmentClass,
+      Value<String?> accountCode,
+      Value<double> modificationAmount,
+      required String modificationDate,
+    });
+typedef $$BudgetModificationsTableUpdateCompanionBuilder =
+    BudgetModificationsCompanion Function({
+      Value<int> id,
+      Value<int?> allocationId,
+      Value<String> fiscalYear,
+      Value<String> fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
+      Value<String> allotmentClass,
+      Value<String?> accountCode,
+      Value<double> modificationAmount,
+      Value<String> modificationDate,
+    });
+
+final class $$BudgetModificationsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $BudgetModificationsTable,
+          BudgetModification
+        > {
+  $$BudgetModificationsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BudgetAllocationsTable _allocationIdTable(_$AppDatabase db) =>
+      db.budgetAllocations.createAlias(
+        'budget_modifications__allocation_id__budget_allocations__id',
+      );
+
+  $$BudgetAllocationsTableProcessedTableManager? get allocationId {
+    final $_column = $_itemColumn<int>('allocation_id');
+    if ($_column == null) return null;
+    final manager = $$BudgetAllocationsTableTableManager(
+      $_db,
+      $_db.budgetAllocations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_allocationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FundSourcesTable _fundCodeTable(_$AppDatabase db) => db.fundSources
+      .createAlias('budget_modifications__fund_code__fund_sources__fund_code');
+
+  $$FundSourcesTableProcessedTableManager get fundCode {
+    final $_column = $_itemColumn<String>('fund_code')!;
+
+    final manager = $$FundSourcesTableTableManager(
+      $_db,
+      $_db.fundSources,
+    ).filter((f) => f.fundCode.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_fundCodeTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $UacsCodesTable _accountCodeTable(_$AppDatabase db) =>
+      db.uacsCodes.createAlias(
+        'budget_modifications__account_code__uacs_codes__account_code',
+      );
+
+  $$UacsCodesTableProcessedTableManager? get accountCode {
+    final $_column = $_itemColumn<String>('account_code');
+    if ($_column == null) return null;
+    final manager = $$UacsCodesTableTableManager(
+      $_db,
+      $_db.uacsCodes,
+    ).filter((f) => f.accountCode.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountCodeTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BudgetModificationsTableFilterComposer
+    extends Composer<_$AppDatabase, $BudgetModificationsTable> {
+  $$BudgetModificationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get allotmentClass => $composableBuilder(
+    column: $table.allotmentClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get modificationAmount => $composableBuilder(
+    column: $table.modificationAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modificationDate => $composableBuilder(
+    column: $table.modificationDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BudgetAllocationsTableFilterComposer get allocationId {
+    final $$BudgetAllocationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.allocationId,
+      referencedTable: $db.budgetAllocations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetAllocationsTableFilterComposer(
+            $db: $db,
+            $table: $db.budgetAllocations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FundSourcesTableFilterComposer get fundCode {
+    final $$FundSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundCode,
+      referencedTable: $db.fundSources,
+      getReferencedColumn: (t) => t.fundCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FundSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.fundSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UacsCodesTableFilterComposer get accountCode {
+    final $$UacsCodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountCode,
+      referencedTable: $db.uacsCodes,
+      getReferencedColumn: (t) => t.accountCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UacsCodesTableFilterComposer(
+            $db: $db,
+            $table: $db.uacsCodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetModificationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BudgetModificationsTable> {
+  $$BudgetModificationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get allotmentClass => $composableBuilder(
+    column: $table.allotmentClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get modificationAmount => $composableBuilder(
+    column: $table.modificationAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modificationDate => $composableBuilder(
+    column: $table.modificationDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BudgetAllocationsTableOrderingComposer get allocationId {
+    final $$BudgetAllocationsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.allocationId,
+      referencedTable: $db.budgetAllocations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BudgetAllocationsTableOrderingComposer(
+            $db: $db,
+            $table: $db.budgetAllocations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FundSourcesTableOrderingComposer get fundCode {
+    final $$FundSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundCode,
+      referencedTable: $db.fundSources,
+      getReferencedColumn: (t) => t.fundCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FundSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.fundSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UacsCodesTableOrderingComposer get accountCode {
+    final $$UacsCodesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountCode,
+      referencedTable: $db.uacsCodes,
+      getReferencedColumn: (t) => t.accountCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UacsCodesTableOrderingComposer(
+            $db: $db,
+            $table: $db.uacsCodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetModificationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BudgetModificationsTable> {
+  $$BudgetModificationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get allotmentClass => $composableBuilder(
+    column: $table.allotmentClass,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get modificationAmount => $composableBuilder(
+    column: $table.modificationAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modificationDate => $composableBuilder(
+    column: $table.modificationDate,
+    builder: (column) => column,
+  );
+
+  $$BudgetAllocationsTableAnnotationComposer get allocationId {
+    final $$BudgetAllocationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.allocationId,
+          referencedTable: $db.budgetAllocations,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BudgetAllocationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.budgetAllocations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$FundSourcesTableAnnotationComposer get fundCode {
+    final $$FundSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundCode,
+      referencedTable: $db.fundSources,
+      getReferencedColumn: (t) => t.fundCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FundSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.fundSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UacsCodesTableAnnotationComposer get accountCode {
+    final $$UacsCodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountCode,
+      referencedTable: $db.uacsCodes,
+      getReferencedColumn: (t) => t.accountCode,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UacsCodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.uacsCodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetModificationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BudgetModificationsTable,
+          BudgetModification,
+          $$BudgetModificationsTableFilterComposer,
+          $$BudgetModificationsTableOrderingComposer,
+          $$BudgetModificationsTableAnnotationComposer,
+          $$BudgetModificationsTableCreateCompanionBuilder,
+          $$BudgetModificationsTableUpdateCompanionBuilder,
+          (BudgetModification, $$BudgetModificationsTableReferences),
+          BudgetModification,
+          PrefetchHooks Function({
+            bool allocationId,
+            bool fundCode,
+            bool accountCode,
+          })
+        > {
+  $$BudgetModificationsTableTableManager(
+    _$AppDatabase db,
+    $BudgetModificationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BudgetModificationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BudgetModificationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BudgetModificationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> allocationId = const Value.absent(),
+                Value<String> fiscalYear = const Value.absent(),
+                Value<String> fundCode = const Value.absent(),
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
+                Value<String> allotmentClass = const Value.absent(),
+                Value<String?> accountCode = const Value.absent(),
+                Value<double> modificationAmount = const Value.absent(),
+                Value<String> modificationDate = const Value.absent(),
+              }) => BudgetModificationsCompanion(
+                id: id,
+                allocationId: allocationId,
+                fiscalYear: fiscalYear,
+                fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
+                allotmentClass: allotmentClass,
+                accountCode: accountCode,
+                modificationAmount: modificationAmount,
+                modificationDate: modificationDate,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> allocationId = const Value.absent(),
+                required String fiscalYear,
+                required String fundCode,
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
+                required String allotmentClass,
+                Value<String?> accountCode = const Value.absent(),
+                Value<double> modificationAmount = const Value.absent(),
+                required String modificationDate,
+              }) => BudgetModificationsCompanion.insert(
+                id: id,
+                allocationId: allocationId,
+                fiscalYear: fiscalYear,
+                fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
+                allotmentClass: allotmentClass,
+                accountCode: accountCode,
+                modificationAmount: modificationAmount,
+                modificationDate: modificationDate,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BudgetModificationsTable, BudgetModification>(
+                    table,
+                  ),
+                  $$BudgetModificationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({allocationId = false, fundCode = false, accountCode = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (allocationId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.allocationId,
+                                    referencedTable:
+                                        $$BudgetModificationsTableReferences
+                                            ._allocationIdTable(db),
+                                    referencedColumn:
+                                        $$BudgetModificationsTableReferences
+                                            ._allocationIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (fundCode) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.fundCode,
+                                    referencedTable:
+                                        $$BudgetModificationsTableReferences
+                                            ._fundCodeTable(db),
+                                    referencedColumn:
+                                        $$BudgetModificationsTableReferences
+                                            ._fundCodeTable(db)
+                                            .fundCode,
+                                  )
+                                  as T;
+                        }
+                        if (accountCode) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountCode,
+                                    referencedTable:
+                                        $$BudgetModificationsTableReferences
+                                            ._accountCodeTable(db),
+                                    referencedColumn:
+                                        $$BudgetModificationsTableReferences
+                                            ._accountCodeTable(db)
+                                            .accountCode,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$BudgetModificationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BudgetModificationsTable,
+      BudgetModification,
+      $$BudgetModificationsTableFilterComposer,
+      $$BudgetModificationsTableOrderingComposer,
+      $$BudgetModificationsTableAnnotationComposer,
+      $$BudgetModificationsTableCreateCompanionBuilder,
+      $$BudgetModificationsTableUpdateCompanionBuilder,
+      (BudgetModification, $$BudgetModificationsTableReferences),
+      BudgetModification,
+      PrefetchHooks Function({
+        bool allocationId,
+        bool fundCode,
+        bool accountCode,
+      })
     >;
 typedef $$ObligationRegistriesTableCreateCompanionBuilder =
     ObligationRegistriesCompanion Function({
@@ -3441,6 +5406,8 @@ typedef $$ObligationRegistriesTableCreateCompanionBuilder =
       required String obrNo,
       required String date,
       required String fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
       required String accountCode,
       required String allotmentClassification,
       required String payee,
@@ -3448,6 +5415,7 @@ typedef $$ObligationRegistriesTableCreateCompanionBuilder =
       Value<String?> description,
       required double grossAmount,
       Value<double> disbursementAmount,
+      Value<double> dueAndDemandable,
       Value<String?> attachmentFilename,
       Value<String?> attachmentLocalPath,
     });
@@ -3457,6 +5425,8 @@ typedef $$ObligationRegistriesTableUpdateCompanionBuilder =
       Value<String> obrNo,
       Value<String> date,
       Value<String> fundCode,
+      Value<String> mfoProgram,
+      Value<String> activityProject,
       Value<String> accountCode,
       Value<String> allotmentClassification,
       Value<String> payee,
@@ -3464,6 +5434,7 @@ typedef $$ObligationRegistriesTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<double> grossAmount,
       Value<double> disbursementAmount,
+      Value<double> dueAndDemandable,
       Value<String?> attachmentFilename,
       Value<String?> attachmentLocalPath,
     });
@@ -3542,6 +5513,16 @@ class $$ObligationRegistriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get allotmentClassification => $composableBuilder(
     column: $table.allotmentClassification,
     builder: (column) => ColumnFilters(column),
@@ -3569,6 +5550,11 @@ class $$ObligationRegistriesTableFilterComposer
 
   ColumnFilters<double> get disbursementAmount => $composableBuilder(
     column: $table.disbursementAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get dueAndDemandable => $composableBuilder(
+    column: $table.dueAndDemandable,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3653,6 +5639,16 @@ class $$ObligationRegistriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get allotmentClassification => $composableBuilder(
     column: $table.allotmentClassification,
     builder: (column) => ColumnOrderings(column),
@@ -3680,6 +5676,11 @@ class $$ObligationRegistriesTableOrderingComposer
 
   ColumnOrderings<double> get disbursementAmount => $composableBuilder(
     column: $table.disbursementAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get dueAndDemandable => $composableBuilder(
+    column: $table.dueAndDemandable,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3758,6 +5759,16 @@ class $$ObligationRegistriesTableAnnotationComposer
   GeneratedColumn<String> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
 
+  GeneratedColumn<String> get mfoProgram => $composableBuilder(
+    column: $table.mfoProgram,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get activityProject => $composableBuilder(
+    column: $table.activityProject,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get allotmentClassification => $composableBuilder(
     column: $table.allotmentClassification,
     builder: (column) => column,
@@ -3783,6 +5794,11 @@ class $$ObligationRegistriesTableAnnotationComposer
 
   GeneratedColumn<double> get disbursementAmount => $composableBuilder(
     column: $table.disbursementAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get dueAndDemandable => $composableBuilder(
+    column: $table.dueAndDemandable,
     builder: (column) => column,
   );
 
@@ -3883,6 +5899,8 @@ class $$ObligationRegistriesTableTableManager
                 Value<String> obrNo = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> fundCode = const Value.absent(),
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
                 Value<String> accountCode = const Value.absent(),
                 Value<String> allotmentClassification = const Value.absent(),
                 Value<String> payee = const Value.absent(),
@@ -3890,6 +5908,7 @@ class $$ObligationRegistriesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<double> grossAmount = const Value.absent(),
                 Value<double> disbursementAmount = const Value.absent(),
+                Value<double> dueAndDemandable = const Value.absent(),
                 Value<String?> attachmentFilename = const Value.absent(),
                 Value<String?> attachmentLocalPath = const Value.absent(),
               }) => ObligationRegistriesCompanion(
@@ -3897,6 +5916,8 @@ class $$ObligationRegistriesTableTableManager
                 obrNo: obrNo,
                 date: date,
                 fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
                 accountCode: accountCode,
                 allotmentClassification: allotmentClassification,
                 payee: payee,
@@ -3904,6 +5925,7 @@ class $$ObligationRegistriesTableTableManager
                 description: description,
                 grossAmount: grossAmount,
                 disbursementAmount: disbursementAmount,
+                dueAndDemandable: dueAndDemandable,
                 attachmentFilename: attachmentFilename,
                 attachmentLocalPath: attachmentLocalPath,
               ),
@@ -3913,6 +5935,8 @@ class $$ObligationRegistriesTableTableManager
                 required String obrNo,
                 required String date,
                 required String fundCode,
+                Value<String> mfoProgram = const Value.absent(),
+                Value<String> activityProject = const Value.absent(),
                 required String accountCode,
                 required String allotmentClassification,
                 required String payee,
@@ -3920,6 +5944,7 @@ class $$ObligationRegistriesTableTableManager
                 Value<String?> description = const Value.absent(),
                 required double grossAmount,
                 Value<double> disbursementAmount = const Value.absent(),
+                Value<double> dueAndDemandable = const Value.absent(),
                 Value<String?> attachmentFilename = const Value.absent(),
                 Value<String?> attachmentLocalPath = const Value.absent(),
               }) => ObligationRegistriesCompanion.insert(
@@ -3927,6 +5952,8 @@ class $$ObligationRegistriesTableTableManager
                 obrNo: obrNo,
                 date: date,
                 fundCode: fundCode,
+                mfoProgram: mfoProgram,
+                activityProject: activityProject,
                 accountCode: accountCode,
                 allotmentClassification: allotmentClassification,
                 payee: payee,
@@ -3934,6 +5961,7 @@ class $$ObligationRegistriesTableTableManager
                 description: description,
                 grossAmount: grossAmount,
                 disbursementAmount: disbursementAmount,
+                dueAndDemandable: dueAndDemandable,
                 attachmentFilename: attachmentFilename,
                 attachmentLocalPath: attachmentLocalPath,
               ),
@@ -4033,6 +6061,8 @@ class $AppDatabaseManager {
       $$UacsCodesTableTableManager(_db, _db.uacsCodes);
   $$BudgetAllocationsTableTableManager get budgetAllocations =>
       $$BudgetAllocationsTableTableManager(_db, _db.budgetAllocations);
+  $$BudgetModificationsTableTableManager get budgetModifications =>
+      $$BudgetModificationsTableTableManager(_db, _db.budgetModifications);
   $$ObligationRegistriesTableTableManager get obligationRegistries =>
       $$ObligationRegistriesTableTableManager(_db, _db.obligationRegistries);
 }

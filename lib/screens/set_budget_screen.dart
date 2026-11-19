@@ -21,12 +21,17 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   int? _editingAllocationId;
   String _selectedFy = '2024-2025';
   String _selectedFundCode = '101';
+  String _selectedMfoProgram = BrmsFormatters.mfoPrograms.first;
   String _selectedAllotmentClass = BrmsFormatters.allotmentClasses.first;
   String? _selectedAccountCode;
   DateTime _selectedDate = DateTime.now();
 
   late final TextEditingController _dateController;
+  final _activityController = TextEditingController(text: 'General Operations');
+  final _accountCodeController = TextEditingController();
+  final _beginningBalanceController = TextEditingController(text: '0.00');
   final _amountController = TextEditingController();
+  final _modificationController = TextEditingController(text: '0.00');
   final _tableSearchController = TextEditingController();
   String _tableSearchQuery = '';
   bool _isSaving = false;
@@ -42,7 +47,11 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   @override
   void dispose() {
     _dateController.dispose();
+    _activityController.dispose();
+    _accountCodeController.dispose();
+    _beginningBalanceController.dispose();
     _amountController.dispose();
+    _modificationController.dispose();
     _tableSearchController.dispose();
     super.dispose();
   }
@@ -52,14 +61,19 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
       _editingAllocationId = null;
       _selectedFy = '2024-2025';
       _selectedFundCode = '101';
+      _selectedMfoProgram = BrmsFormatters.mfoPrograms.first;
       _selectedAllotmentClass = BrmsFormatters.allotmentClasses.first;
       _selectedDate = DateTime.now();
       _dateController.text = BrmsFormatters.toDisplayDate(_selectedDate);
+      _activityController.text = 'General Operations';
+      _beginningBalanceController.text = '0.00';
       _amountController.clear();
+      _modificationController.text = '0.00';
       _selectedAccountCode = _defaultAccountCodeForClass(
         _selectedAllotmentClass,
         uacsList ?? const [],
       );
+      _accountCodeController.text = _selectedAccountCode ?? '';
     });
   }
 
@@ -67,8 +81,9 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     String allotmentClass,
     List<UacsCode> uacsList,
   ) {
-    final matching =
-        uacsList.where((u) => u.allotmentClass == allotmentClass).toList();
+    final matching = uacsList
+        .where((u) => u.allotmentClass == allotmentClass)
+        .toList();
     return matching.isNotEmpty ? matching.first.accountCode : null;
   }
 
@@ -96,74 +111,113 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           ? row.fiscalYear
           : BrmsFormatters.fiscalYears.first;
       _selectedFundCode = row.fundCode;
+      _selectedMfoProgram = BrmsFormatters.mfoPrograms.contains(row.mfoProgram)
+          ? row.mfoProgram
+          : BrmsFormatters.mfoPrograms.first;
+      _activityController.text = row.activityProject;
       _selectedAllotmentClass =
           BrmsFormatters.allotmentClasses.contains(row.allotmentClass)
-              ? row.allotmentClass
-              : BrmsFormatters.allotmentClasses.first;
+          ? row.allotmentClass
+          : BrmsFormatters.allotmentClasses.first;
       _selectedAccountCode = row.accountCode;
+      _accountCodeController.text = row.accountCode ?? '';
       _selectedDate = parsedDate;
       _dateController.text = BrmsFormatters.toDisplayDate(parsedDate);
-      _amountController.text = BrmsFormatters.formatNumber(
-        row.allotmentReceived,
+      _beginningBalanceController.text = BrmsFormatters.formatNumber(
+        row.beginningBalance,
       );
+      _amountController.text = BrmsFormatters.formatNumber(
+        row.authorizedAppropriations,
+      );
+      _modificationController.text = '0.00';
     });
   }
 
   Future<void> _saveAllocation(List<UacsCode> uacsList) async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final amount = BrmsFormatters.parseAmount(_amountController.text);
-    if (amount == null || amount <= 0) {
-      showBrmsNotice(context, 'Enter a valid positive allocation amount.');
+    final beginningBalance =
+        BrmsFormatters.parseAmount(_beginningBalanceController.text) ?? 0.0;
+    final amount = BrmsFormatters.parseAmount(_amountController.text) ?? 0.0;
+    final modAmount =
+        BrmsFormatters.parseAmount(_modificationController.text) ?? 0.0;
+
+    if (beginningBalance <= 0 && amount <= 0 && modAmount == 0) {
+      showBrmsNotice(
+        context,
+        'Enter a positive Budget Amount, Beginning Balance, or Modification.',
+      );
       return;
     }
 
+    final activityProject = _activityController.text.trim().isEmpty
+        ? 'General Operations'
+        : _activityController.text.trim();
     final isoDate = BrmsFormatters.toIsoDate(_selectedDate);
+    final typedCode = _accountCodeController.text.trim();
     final validUacs = uacsList
         .where((u) => u.allotmentClass == _selectedAllotmentClass)
         .map((u) => u.accountCode)
         .toSet();
-    final accountCode =
-        (_selectedAccountCode != null && validUacs.contains(_selectedAccountCode))
-            ? _selectedAccountCode
-            : null;
+    final accountCode = validUacs.contains(typedCode)
+        ? typedCode
+        : (validUacs.contains(_selectedAccountCode)
+              ? _selectedAccountCode
+              : null);
 
     setState(() => _isSaving = true);
     try {
       final db = ref.read(databaseProvider);
+      int allocationId;
       if (_editingAllocationId == null) {
-        await db.insertBudgetAllocation(
+        allocationId = await db.insertBudgetAllocation(
           fiscalYear: _selectedFy,
           fundCode: _selectedFundCode,
+          mfoProgram: _selectedMfoProgram,
+          activityProject: activityProject,
           allotmentClass: _selectedAllotmentClass,
           accountCode: accountCode,
+          beginningBalance: beginningBalance,
           amount: amount,
           dateOfAllocation: isoDate,
         );
-        if (mounted) {
-          showBrmsNotice(
-            context,
-            'Saved budget allocation for Fund $_selectedFundCode ($_selectedFy).',
-          );
-        }
       } else {
+        allocationId = _editingAllocationId!;
         await db.updateBudgetAllocation(
-          id: _editingAllocationId!,
+          id: allocationId,
           fiscalYear: _selectedFy,
           fundCode: _selectedFundCode,
+          mfoProgram: _selectedMfoProgram,
+          activityProject: activityProject,
           allotmentClass: _selectedAllotmentClass,
           accountCode: accountCode,
+          beginningBalance: beginningBalance,
           amount: amount,
           dateOfAllocation: isoDate,
         );
-        if (mounted) {
-          showBrmsNotice(
-            context,
-            'Updated budget allocation for Fund $_selectedFundCode ($_selectedFy).',
-          );
-        }
       }
+
+      if (modAmount != 0.0) {
+        await db.insertBudgetModification(
+          allocationId: allocationId,
+          fiscalYear: _selectedFy,
+          fundCode: _selectedFundCode,
+          mfoProgram: _selectedMfoProgram,
+          activityProject: activityProject,
+          allotmentClass: _selectedAllotmentClass,
+          accountCode: accountCode,
+          modificationAmount: modAmount,
+          modificationDate: isoDate,
+        );
+      }
+
       if (mounted) {
+        showBrmsNotice(
+          context,
+          _editingAllocationId == null
+              ? 'Saved budget allocation for Fund $_selectedFundCode ($_selectedFy).'
+              : 'Updated budget allocation for Fund $_selectedFundCode ($_selectedFy).',
+        );
         _resetForm(uacsList: uacsList);
       }
     } catch (e) {
@@ -194,6 +248,10 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     final fundsAsync = ref.watch(fundSourcesProvider);
     final uacsAsync = ref.watch(uacsCodesProvider);
     final allocationsAsync = ref.watch(budgetAllocationsProvider);
+    final modificationsAsync = ref.watch(budgetModificationsProvider);
+    final activities =
+        ref.watch(distinctActivityProjectsProvider).value ??
+        const ['General Operations'];
 
     final funds = fundsAsync.value ?? const <FundSource>[];
     final uacsList = uacsAsync.value ?? const <UacsCode>[];
@@ -206,9 +264,15 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildSetBudgetFormCard(funds: funds, uacsList: uacsList),
+              _buildSetBudgetFormCard(
+                funds: funds,
+                uacsList: uacsList,
+                activities: activities,
+              ),
               const SizedBox(height: 24),
               _buildSummaryTableCard(allocationsAsync),
+              const SizedBox(height: 24),
+              _buildModificationsTableCard(modificationsAsync),
               const SizedBox(height: 24),
               const Divider(color: BrmsColors.outlineVariant),
               const Padding(
@@ -232,6 +296,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   Widget _buildSetBudgetFormCard({
     required List<FundSource> funds,
     required List<UacsCode> uacsList,
+    required List<String> activities,
   }) {
     final fundItems = funds.isNotEmpty
         ? funds.map((f) => f.fundCode).toList()
@@ -243,11 +308,6 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     final filteredUacs = uacsList
         .where((u) => u.allotmentClass == _selectedAllotmentClass)
         .toList();
-    final activeAccountCode = filteredUacs.any(
-      (u) => u.accountCode == _selectedAccountCode,
-    )
-        ? _selectedAccountCode
-        : (filteredUacs.isNotEmpty ? filteredUacs.first.accountCode : null);
 
     return BrmsCard(
       padding: const EdgeInsets.all(24),
@@ -259,30 +319,34 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _editingAllocationId == null
-                          ? 'Set Budget'
-                          : 'Edit Budget Allocation',
-                      style: BrmsTheme.heading(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _editingAllocationId == null
+                            ? 'Set Budget'
+                            : 'Edit Budget Allocation',
+                        style: BrmsTheme.heading(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Allocate statutory appropriations and allotment ceilings for CSU Aparri Campus fiscal funds.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: BrmsColors.secondary,
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Allocate statutory appropriations, beginning balances, and quarterly modifications for CSU Aparri Campus.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: BrmsColors.secondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                if (_editingAllocationId != null)
+                if (_editingAllocationId != null) ...[
+                  const SizedBox(width: 12),
                   const BrmsBadge(label: 'EDIT MODE', filled: true),
+                ],
               ],
             ),
             const SizedBox(height: 22),
@@ -312,24 +376,47 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   value: activeFundCode,
                   items: funds.isNotEmpty
                       ? funds
-                          .map(
-                            (f) => DropdownMenuItem(
-                              value: f.fundCode,
-                              child: Text('${f.fundCode} - ${f.fundName}'),
-                            ),
-                          )
-                          .toList()
+                            .map(
+                              (f) => DropdownMenuItem(
+                                value: f.fundCode,
+                                child: Text('${f.fundCode} - ${f.fundName}'),
+                              ),
+                            )
+                            .toList()
                       : fundItems
-                          .map(
-                            (code) => DropdownMenuItem(
-                              value: code,
-                              child: Text(code),
-                            ),
-                          )
-                          .toList(),
+                            .map(
+                              (code) => DropdownMenuItem(
+                                value: code,
+                                child: Text(code),
+                              ),
+                            )
+                            .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _selectedFundCode = v);
                   },
+                );
+
+                final programField = _buildDropdownField<String>(
+                  label: 'PROGRAM / MFO',
+                  value: _selectedMfoProgram,
+                  items: BrmsFormatters.mfoPrograms
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedMfoProgram = v);
+                  },
+                );
+
+                final activityField = _buildStringAutocomplete(
+                  label: 'ACTIVITY / PROJECT',
+                  controller: _activityController,
+                  options: activities,
+                  hintText: 'e.g., General Operations',
                 );
 
                 final classField = _buildDropdownField<String>(
@@ -351,42 +438,36 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                           v,
                           uacsList,
                         );
+                        _accountCodeController.text =
+                            _selectedAccountCode ?? '';
                       });
                     }
                   },
                 );
 
-                final uacsField = _buildDropdownField<String?>(
-                  label: 'ACCOUNT CODE (UACS)',
-                  value: activeAccountCode,
-                  items: filteredUacs.isNotEmpty
-                      ? filteredUacs
-                          .map(
-                            (u) => DropdownMenuItem<String?>(
-                              value: u.accountCode,
-                              child: Text(
-                                '${u.accountCode} - ${u.objectTitle}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList()
-                      : const [
-                          DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text(
-                              'No UACS code seeded for this class (Optional)',
-                              style: TextStyle(color: BrmsColors.secondary),
-                            ),
-                          ),
-                        ],
-                  onChanged: filteredUacs.isNotEmpty
-                      ? (v) => setState(() => _selectedAccountCode = v)
-                      : null,
+                final uacsField = _buildUacsAutocomplete(filteredUacs);
+
+                final beginningField = _buildInputField(
+                  label: 'BEGINNING BALANCE (₱)',
+                  controller: _beginningBalanceController,
+                  prefixText: 'Php ',
+                  hintText: '0.00',
+                  mono: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return null;
+                    final parsed = BrmsFormatters.parseAmount(val);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid non-negative balance';
+                    }
+                    return null;
+                  },
                 );
 
                 final amountField = _buildInputField(
-                  label: 'AMOUNT (₱)',
+                  label: 'BUDGET AMOUNT (₱)',
                   controller: _amountController,
                   prefixText: 'Php ',
                   hintText: '0.00',
@@ -395,9 +476,30 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                     decimal: true,
                   ),
                   validator: (val) {
-                    final parsed = BrmsFormatters.parseAmount(val ?? '');
-                    if (parsed == null || parsed <= 0) {
-                      return 'Enter a positive amount';
+                    if (val == null || val.trim().isEmpty) return null;
+                    final parsed = BrmsFormatters.parseAmount(val);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid amount';
+                    }
+                    return null;
+                  },
+                );
+
+                final modField = _buildInputField(
+                  label: 'MODIFICATION / ADJUSTMENT (±₱)',
+                  controller: _modificationController,
+                  prefixText: 'Php ',
+                  hintText: '0.00 (optional +/-)',
+                  mono: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return null;
+                    final parsed = BrmsFormatters.parseAmount(val);
+                    if (parsed == null) {
+                      return 'Enter a valid number (can be negative)';
                     }
                     return null;
                   },
@@ -412,11 +514,19 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                       const SizedBox(height: 16),
                       fundField,
                       const SizedBox(height: 16),
+                      programField,
+                      const SizedBox(height: 16),
+                      activityField,
+                      const SizedBox(height: 16),
                       classField,
                       const SizedBox(height: 16),
                       uacsField,
                       const SizedBox(height: 16),
+                      beginningField,
+                      const SizedBox(height: 16),
                       amountField,
+                      const SizedBox(height: 16),
+                      modField,
                     ],
                   );
                 }
@@ -429,24 +539,37 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                         Expanded(child: fyField),
                         const SizedBox(width: 20),
                         Expanded(child: dateField),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: fundField),
                         const SizedBox(width: 20),
-                        Expanded(child: classField),
+                        Expanded(child: fundField),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Expanded(child: programField),
+                        const SizedBox(width: 20),
+                        Expanded(child: activityField),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: classField),
+                        const SizedBox(width: 20),
                         Expanded(child: uacsField),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: beginningField),
                         const SizedBox(width: 20),
                         Expanded(child: amountField),
+                        const SizedBox(width: 20),
+                        Expanded(child: modField),
                       ],
                     ),
                   ],
@@ -469,14 +592,188 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 const SizedBox(width: 10),
                 BrmsButton(
                   label: _editingAllocationId == null ? 'Save' : 'Update',
-                  onPressed:
-                      _isSaving ? null : () => _saveAllocation(uacsList),
+                  onPressed: _isSaving ? null : () => _saveAllocation(uacsList),
                 ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildUacsAutocomplete(List<UacsCode> filteredUacs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ACCOUNT CODE (UACS)',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: BrmsColors.secondary,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Autocomplete<UacsCode>(
+          initialValue: TextEditingValue(text: _accountCodeController.text),
+          displayStringForOption: (u) => u.accountCode,
+          optionsBuilder: (textEditingValue) {
+            final q = textEditingValue.text.trim().toLowerCase();
+            if (q.isEmpty) return filteredUacs;
+            return filteredUacs.where(
+              (u) =>
+                  u.accountCode.toLowerCase().contains(q) ||
+                  u.objectTitle.toLowerCase().contains(q),
+            );
+          },
+          onSelected: (selected) {
+            setState(() {
+              _selectedAccountCode = selected.accountCode;
+              _accountCodeController.text = selected.accountCode;
+            });
+          },
+          fieldViewBuilder: (context, fieldCtrl, focusNode, onSubmitted) {
+            if (fieldCtrl.text != _accountCodeController.text) {
+              fieldCtrl.text = _accountCodeController.text;
+              fieldCtrl.selection = TextSelection.collapsed(
+                offset: fieldCtrl.text.length,
+              );
+            }
+            return TextFormField(
+              controller: fieldCtrl,
+              focusNode: focusNode,
+              onChanged: (v) {
+                _accountCodeController.text = v;
+                _selectedAccountCode = v.trim().isEmpty ? null : v.trim();
+              },
+              style: BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: filteredUacs.isEmpty
+                    ? 'Optional for Capital Outlay'
+                    : 'e.g., ${filteredUacs.first.accountCode}',
+                filled: true,
+                fillColor: BrmsColors.surfaceContainerLow,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.outlineVariant,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: BrmsColors.primary),
+                ),
+              ),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(8),
+                color: BrmsColors.surface,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: 200,
+                    maxWidth: 380,
+                  ),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final u = options.elementAt(index);
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          '${u.accountCode} — ${u.objectTitle}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onTap: () => onSelected(u),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStringAutocomplete({
+    required String label,
+    required TextEditingController controller,
+    required List<String> options,
+    required String hintText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: BrmsColors.secondary,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Autocomplete<String>(
+          initialValue: TextEditingValue(text: controller.text),
+          optionsBuilder: (textEditingValue) {
+            final q = textEditingValue.text.trim().toLowerCase();
+            if (q.isEmpty) return options;
+            return options.where((o) => o.toLowerCase().contains(q));
+          },
+          onSelected: (selected) => controller.text = selected,
+          fieldViewBuilder: (context, fieldCtrl, focusNode, onSubmitted) {
+            if (fieldCtrl.text != controller.text) {
+              fieldCtrl.text = controller.text;
+              fieldCtrl.selection = TextSelection.collapsed(
+                offset: fieldCtrl.text.length,
+              );
+            }
+            return TextFormField(
+              controller: fieldCtrl,
+              focusNode: focusNode,
+              onChanged: (v) => controller.text = v,
+              style: const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
+              decoration: InputDecoration(
+                hintText: hintText,
+                filled: true,
+                fillColor: BrmsColors.surfaceContainerLow,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.outlineVariant,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: BrmsColors.primary),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -506,7 +803,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'Master list of registered fiscal appropriations and releases',
+                    'Master list of registered fiscal appropriations, MFOs, and beginning balances',
                     style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
                   ),
                 ],
@@ -516,8 +813,9 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 height: 34,
                 child: TextField(
                   controller: _tableSearchController,
-                  onChanged: (v) =>
-                      setState(() => _tableSearchQuery = v.trim().toLowerCase()),
+                  onChanged: (v) => setState(
+                    () => _tableSearchQuery = v.trim().toLowerCase(),
+                  ),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(
                       Icons.search,
@@ -570,17 +868,23 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   ? rows
                   : rows.where((r) {
                       return r.fiscalYear.toLowerCase().contains(
-                                _tableSearchQuery,
-                              ) ||
+                            _tableSearchQuery,
+                          ) ||
                           r.fundCode.toLowerCase().contains(
-                                _tableSearchQuery,
-                              ) ||
+                            _tableSearchQuery,
+                          ) ||
+                          r.mfoProgram.toLowerCase().contains(
+                            _tableSearchQuery,
+                          ) ||
+                          r.activityProject.toLowerCase().contains(
+                            _tableSearchQuery,
+                          ) ||
                           r.allotmentClass.toLowerCase().contains(
-                                _tableSearchQuery,
-                              ) ||
+                            _tableSearchQuery,
+                          ) ||
                           (r.accountCode ?? '').toLowerCase().contains(
-                                _tableSearchQuery,
-                              );
+                            _tableSearchQuery,
+                          );
                     }).toList();
 
               if (filtered.isEmpty) {
@@ -607,7 +911,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                         minWidth: constraints.maxWidth,
                       ),
                       child: DataTable(
-                        columnSpacing: 24,
+                        columnSpacing: 20,
                         horizontalMargin: 12,
                         headingTextStyle: const TextStyle(
                           fontSize: 11,
@@ -618,9 +922,17 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                         columns: const [
                           DataColumn(label: Text('FISCAL YEAR')),
                           DataColumn(label: Text('FUND CODE')),
+                          DataColumn(label: Text('PROGRAM / ACTIVITY')),
                           DataColumn(label: Text('ALLOTMENT CLASS')),
-                          DataColumn(label: Text('DATE OF ALLOCATION')),
-                          DataColumn(label: Text('AMOUNT'), numeric: true),
+                          DataColumn(label: Text('DATE')),
+                          DataColumn(
+                            label: Text('BEGINNING BAL.'),
+                            numeric: true,
+                          ),
+                          DataColumn(
+                            label: Text('BUDGET AMOUNT'),
+                            numeric: true,
+                          ),
                           DataColumn(label: Center(child: Text('ACTION'))),
                         ],
                         rows: filtered.map((entry) {
@@ -661,6 +973,35 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                                 ),
                               ),
                               DataCell(
+                                SizedBox(
+                                  width: 220,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        entry.mfoProgram,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                      Text(
+                                        entry.activityProject,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: BrmsColors.secondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              DataCell(
                                 BrmsBadge(
                                   label: BrmsFormatters.shortAllotmentLabel(
                                     entry.allotmentClass,
@@ -683,7 +1024,18 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                               DataCell(
                                 Text(
                                   BrmsFormatters.formatPhp(
-                                    entry.allotmentReceived,
+                                    entry.beginningBalance,
+                                  ),
+                                  style: BrmsTheme.mono(
+                                    fontSize: 12,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  BrmsFormatters.formatPhp(
+                                    entry.authorizedAppropriations,
                                   ),
                                   style: BrmsTheme.mono(
                                     fontSize: 12,
@@ -698,7 +1050,8 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       OutlinedButton(
-                                        onPressed: () => _populateForEdit(entry),
+                                        onPressed: () =>
+                                            _populateForEdit(entry),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: BrmsColors.onSurface,
                                           side: const BorderSide(
@@ -755,6 +1108,120 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 },
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModificationsTableCard(
+    AsyncValue<List<BudgetModification>> modificationsAsync,
+  ) {
+    final mods = modificationsAsync.value ?? const <BudgetModification>[];
+    if (mods.isEmpty) return const SizedBox.shrink();
+
+    return BrmsCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Quarterly Budget Modifications & Realignments',
+            style: BrmsTheme.heading(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'Adjustments applied to Adjusted Budget columns across Central, Registries, FAR 2, and FAR 2-A',
+            style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: BrmsColors.outlineVariant),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 20,
+              horizontalMargin: 12,
+              headingTextStyle: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: BrmsColors.secondary,
+              ),
+              columns: const [
+                DataColumn(label: Text('DATE')),
+                DataColumn(label: Text('FY')),
+                DataColumn(label: Text('FUND')),
+                DataColumn(label: Text('PROGRAM / ACTIVITY')),
+                DataColumn(label: Text('CLASS')),
+                DataColumn(label: Text('MODIFICATION'), numeric: true),
+                DataColumn(label: Text('ACTION')),
+              ],
+              rows: mods.map((m) {
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text(
+                        BrmsFormatters.isoToDisplay(m.modificationDate),
+                        style: BrmsTheme.mono(fontSize: 11),
+                      ),
+                    ),
+                    DataCell(
+                      Text(m.fiscalYear, style: BrmsTheme.mono(fontSize: 11)),
+                    ),
+                    DataCell(BrmsBadge(label: m.fundCode)),
+                    DataCell(
+                      Text(
+                        '${m.mfoProgram} • ${m.activityProject}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    DataCell(
+                      BrmsBadge(
+                        label: BrmsFormatters.shortAllotmentLabel(
+                          m.allotmentClass,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        BrmsFormatters.formatPhp(m.modificationAmount),
+                        style: BrmsTheme.mono(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      OutlinedButton(
+                        onPressed: () async {
+                          await ref
+                              .read(databaseProvider)
+                              .deleteBudgetModification(m.id);
+                          if (mounted) {
+                            showBrmsNotice(context, 'Modification removed.');
+                          }
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: BrmsColors.error,
+                          side: const BorderSide(
+                            color: BrmsColors.outlineVariant,
+                          ),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                        ),
+                        child: const Text(
+                          'Remove',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),

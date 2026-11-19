@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme/brms_theme.dart';
 
@@ -228,21 +230,183 @@ class BrmsErrorState extends StatelessWidget {
   }
 }
 
-/// Shows a clean monochrome toast/snackbar notification.
+OverlayEntry? _activeBrmsNoticeEntry;
+
+/// Dismisses any currently visible top-of-app notification.
+void dismissBrmsNotice() {
+  _activeBrmsNoticeEntry?.remove();
+  _activeBrmsNoticeEntry = null;
+}
+
+/// Shows a clean monochrome notification banner at the top of the app,
+/// rendered in the root [Overlay] so it appears above all screens and dialogs.
 void showBrmsNotice(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) {
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          backgroundColor: BrmsColors.primary,
+          behavior: SnackBarBehavior.floating,
+          width: 420,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 2),
         ),
-        backgroundColor: BrmsColors.primary,
-        behavior: SnackBarBehavior.floating,
-        width: 420,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
+      );
+    return;
+  }
+
+  dismissBrmsNotice();
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (ctx) => _BrmsTopNotice(
+      message: message,
+      onDismissed: () {
+        if (_activeBrmsNoticeEntry == entry) {
+          dismissBrmsNotice();
+        }
+      },
+    ),
+  );
+
+  _activeBrmsNoticeEntry = entry;
+  overlay.insert(entry);
+}
+
+class _BrmsTopNotice extends StatefulWidget {
+  const _BrmsTopNotice({
+    required this.message,
+    required this.onDismissed,
+  });
+
+  final String message;
+  final VoidCallback onDismissed;
+
+  @override
+  State<_BrmsTopNotice> createState() => _BrmsTopNoticeState();
+}
+
+class _BrmsTopNoticeState extends State<_BrmsTopNotice>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slideAnimation;
+  late final Animation<double> _fadeAnimation;
+  Timer? _autoDismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.35),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+
+    _controller.forward();
+    _autoDismissTimer = Timer(
+      const Duration(seconds: 3),
+      _dismiss,
+    );
+  }
+
+  Future<void> _dismiss() async {
+    _autoDismissTimer?.cancel();
+    _autoDismissTimer = null;
+    if (!mounted) return;
+    await _controller.reverse();
+    if (mounted) {
+      widget.onDismissed();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoDismissTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.paddingOf(context).top + 16;
+
+    return Positioned(
+      top: topPadding,
+      left: 16,
+      right: 16,
+      child: IgnorePointer(
+        ignoring: false,
+        child: Center(
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Material(
+                  color: BrmsColors.primary,
+                  elevation: 8,
+                  shadowColor: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          size: 17,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            widget.message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        InkWell(
+                          onTap: _dismiss,
+                          borderRadius: BorderRadius.circular(4),
+                          child: const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.close,
+                              size: 15,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
+  }
 }

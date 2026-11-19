@@ -28,14 +28,19 @@ class UacsCodes extends Table {
   Set<Column<Object>> get primaryKey => {accountCode};
 }
 
-/// Budget allocations per fiscal year, fund source, and allotment class.
+/// Budget allocations per fiscal year, fund source, program, activity, and allotment class.
 class BudgetAllocations extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get fiscalYear => text()();
   TextColumn get fundCode => text().references(FundSources, #fundCode)();
+  TextColumn get mfoProgram => text()
+      .withDefault(const Constant('A.I General Administration and Support'))();
+  TextColumn get activityProject =>
+      text().withDefault(const Constant('General Operations'))();
   TextColumn get allotmentClass => text()();
   TextColumn get accountCode =>
       text().nullable().references(UacsCodes, #accountCode)();
+  RealColumn get beginningBalance => real().withDefault(const Constant(0.0))();
   RealColumn get authorizedAppropriations =>
       real().withDefault(const Constant(0.0))();
   RealColumn get adjustmentsAppropriations =>
@@ -48,12 +53,36 @@ class BudgetAllocations extends Table {
   IntColumn get isHidden => integer().withDefault(const Constant(0))();
 }
 
+/// Quarterly budget modifications/realignments (`budget_modifications`).
+class BudgetModifications extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get allocationId => integer()
+      .nullable()
+      .references(BudgetAllocations, #id, onDelete: KeyAction.setNull)();
+  TextColumn get fiscalYear => text()();
+  TextColumn get fundCode => text().references(FundSources, #fundCode)();
+  TextColumn get mfoProgram => text()
+      .withDefault(const Constant('A.I General Administration and Support'))();
+  TextColumn get activityProject =>
+      text().withDefault(const Constant('General Operations'))();
+  TextColumn get allotmentClass => text()();
+  TextColumn get accountCode =>
+      text().nullable().references(UacsCodes, #accountCode)();
+  RealColumn get modificationAmount =>
+      real().withDefault(const Constant(0.0))();
+  TextColumn get modificationDate => text()();
+}
+
 /// Obligation Request (OBR) ledger records.
 class ObligationRegistries extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get obrNo => text().unique()();
   TextColumn get date => text()();
   TextColumn get fundCode => text().references(FundSources, #fundCode)();
+  TextColumn get mfoProgram => text()
+      .withDefault(const Constant('A.I General Administration and Support'))();
+  TextColumn get activityProject =>
+      text().withDefault(const Constant('General Operations'))();
   TextColumn get accountCode => text().references(UacsCodes, #accountCode)();
   TextColumn get allotmentClassification => text()();
   TextColumn get payee => text()();
@@ -62,12 +91,20 @@ class ObligationRegistries extends Table {
   RealColumn get grossAmount => real()();
   RealColumn get disbursementAmount =>
       real().withDefault(const Constant(0.0))();
+  RealColumn get dueAndDemandable =>
+      real().withDefault(const Constant(0.0))();
   TextColumn get attachmentFilename => text().nullable()();
   TextColumn get attachmentLocalPath => text().nullable()();
 }
 
 @DriftDatabase(
-  tables: [FundSources, UacsCodes, BudgetAllocations, ObligationRegistries],
+  tables: [
+    FundSources,
+    UacsCodes,
+    BudgetAllocations,
+    BudgetModifications,
+    ObligationRegistries,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
@@ -77,7 +114,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -86,7 +123,33 @@ class AppDatabase extends _$AppDatabase {
           await _seedInitialData();
         },
         onUpgrade: (m, from, to) async {
-          await m.createAll();
+          if (from < 2) {
+            await m.addColumn(
+              budgetAllocations,
+              budgetAllocations.mfoProgram,
+            );
+            await m.addColumn(
+              budgetAllocations,
+              budgetAllocations.activityProject,
+            );
+            await m.addColumn(
+              budgetAllocations,
+              budgetAllocations.beginningBalance,
+            );
+            await m.createTable(budgetModifications);
+            await m.addColumn(
+              obligationRegistries,
+              obligationRegistries.mfoProgram,
+            );
+            await m.addColumn(
+              obligationRegistries,
+              obligationRegistries.activityProject,
+            );
+            await m.addColumn(
+              obligationRegistries,
+              obligationRegistries.dueAndDemandable,
+            );
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -163,7 +226,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  // Budget Allocations (Set Budget)
+  // Budget Allocations & Modifications (Set Budget)
   // ---------------------------------------------------------------------------
 
   Stream<List<BudgetAllocation>> watchBudgetAllocations() {
@@ -175,11 +238,23 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  Stream<List<BudgetModification>> watchBudgetModifications() {
+    return (select(budgetModifications)
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.modificationDate),
+            (t) => OrderingTerm.desc(t.id),
+          ]))
+        .watch();
+  }
+
   Future<int> insertBudgetAllocation({
     required String fiscalYear,
     required String fundCode,
+    String mfoProgram = 'A.I General Administration and Support',
+    String activityProject = 'General Operations',
     required String allotmentClass,
     String? accountCode,
+    double beginningBalance = 0.0,
     required double amount,
     required String dateOfAllocation,
   }) {
@@ -187,8 +262,11 @@ class AppDatabase extends _$AppDatabase {
       BudgetAllocationsCompanion.insert(
         fiscalYear: fiscalYear,
         fundCode: fundCode,
+        mfoProgram: Value(mfoProgram),
+        activityProject: Value(activityProject),
         allotmentClass: allotmentClass,
         accountCode: Value(accountCode),
+        beginningBalance: Value(beginningBalance),
         authorizedAppropriations: Value(amount),
         allotmentReceived: Value(amount),
         dateOfAllocation: dateOfAllocation,
@@ -200,8 +278,11 @@ class AppDatabase extends _$AppDatabase {
     required int id,
     required String fiscalYear,
     required String fundCode,
+    String mfoProgram = 'A.I General Administration and Support',
+    String activityProject = 'General Operations',
     required String allotmentClass,
     String? accountCode,
+    double beginningBalance = 0.0,
     required double amount,
     required String dateOfAllocation,
   }) async {
@@ -211,8 +292,11 @@ class AppDatabase extends _$AppDatabase {
       BudgetAllocationsCompanion(
         fiscalYear: Value(fiscalYear),
         fundCode: Value(fundCode),
+        mfoProgram: Value(mfoProgram),
+        activityProject: Value(activityProject),
         allotmentClass: Value(allotmentClass),
         accountCode: Value(accountCode),
+        beginningBalance: Value(beginningBalance),
         authorizedAppropriations: Value(amount),
         allotmentReceived: Value(amount),
         dateOfAllocation: Value(dateOfAllocation),
@@ -228,6 +312,36 @@ class AppDatabase extends _$AppDatabase {
     await (update(budgetAllocations)..where((t) => t.id.equals(id))).write(
       BudgetAllocationsCompanion(isHidden: Value(hidden ? 1 : 0)),
     );
+  }
+
+  Future<int> insertBudgetModification({
+    int? allocationId,
+    required String fiscalYear,
+    required String fundCode,
+    required String mfoProgram,
+    required String activityProject,
+    required String allotmentClass,
+    String? accountCode,
+    required double modificationAmount,
+    required String modificationDate,
+  }) {
+    return into(budgetModifications).insert(
+      BudgetModificationsCompanion.insert(
+        allocationId: Value(allocationId),
+        fiscalYear: fiscalYear,
+        fundCode: fundCode,
+        mfoProgram: Value(mfoProgram),
+        activityProject: Value(activityProject),
+        allotmentClass: allotmentClass,
+        accountCode: Value(accountCode),
+        modificationAmount: Value(modificationAmount),
+        modificationDate: modificationDate,
+      ),
+    );
+  }
+
+  Future<void> deleteBudgetModification(int id) async {
+    await (delete(budgetModifications)..where((t) => t.id.equals(id))).go();
   }
 
   // ---------------------------------------------------------------------------
@@ -298,9 +412,27 @@ class AppDatabase extends _$AppDatabase {
         );
   }
 
-  /// Computes remaining available balance for a [fundCode] and [allotmentClass]:
-  /// `sum(allotment_received + adjustments_allotment)` (where `is_hidden = 0`)
-  /// minus `sum(gross_amount)` (excluding [excludeObligationId] if editing).
+  Stream<List<String>> watchDistinctActivityProjects() {
+    final query = selectOnly(budgetAllocations, distinct: true)
+      ..addColumns([budgetAllocations.activityProject])
+      ..orderBy([OrderingTerm.asc(budgetAllocations.activityProject)]);
+    return query.watch().map((rows) {
+      final items = <String>{'General Operations'};
+      for (final r in rows) {
+        final v = r.read(budgetAllocations.activityProject);
+        if (v != null && v.trim().isNotEmpty) {
+          items.add(v.trim());
+        }
+      }
+      final list = items.toList()..sort();
+      return list;
+    });
+  }
+
+  /// Computes remaining available adjusted budget for a [fundCode] and
+  /// [allotmentClass]:
+  /// `sum(beginning_balance + authorized_appropriations + modifications)`
+  /// (where `is_hidden = 0`) minus `sum(gross_amount)`.
   Future<double> computeRemainingBalance({
     required String fundCode,
     required String allotmentClass,
@@ -315,9 +447,25 @@ class AppDatabase extends _$AppDatabase {
           ))
         .get();
 
-    final totalAllotment = allocations.fold<double>(
+    final totalBudget = allocations.fold<double>(
       0.0,
-      (sum, row) => sum + row.allotmentReceived + row.adjustmentsAllotment,
+      (sum, row) =>
+          sum +
+          row.beginningBalance +
+          row.authorizedAppropriations +
+          row.adjustmentsAllotment,
+    );
+
+    final mods = await (select(budgetModifications)
+          ..where(
+            (t) =>
+                t.fundCode.equals(fundCode) &
+                t.allotmentClass.equals(allotmentClass),
+          ))
+        .get();
+    final totalMods = mods.fold<double>(
+      0.0,
+      (sum, row) => sum + row.modificationAmount,
     );
 
     final obligationsQuery = select(obligationRegistries)
@@ -336,7 +484,7 @@ class AppDatabase extends _$AppDatabase {
       (sum, row) => sum + row.grossAmount,
     );
 
-    return totalAllotment - totalObligated;
+    return (totalBudget + totalMods) - totalObligated;
   }
 }
 

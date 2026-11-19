@@ -45,14 +45,18 @@ class _ObligationRegistryScreenState
   // Form state
   final _formKey = GlobalKey<FormState>();
   String _formFundCode = '101';
+  String _formMfoProgram = BrmsFormatters.mfoPrograms.first;
   String _formAllotmentClass = BrmsFormatters.allotmentClasses.first;
   DateTime _formDate = DateTime.now();
 
   final _obrNoController = TextEditingController();
+  final _activityController = TextEditingController(text: 'General Operations');
   final _accountCodeController = TextEditingController();
   final _dateController = TextEditingController();
   final _payeeController = TextEditingController();
   final _grossAmountController = TextEditingController();
+  final _disbursementController = TextEditingController(text: '0.00');
+  final _dueAndDemandableController = TextEditingController(text: '0.00');
   final _particularController = TextEditingController();
   final _descriptionController = TextEditingController();
 
@@ -72,10 +76,13 @@ class _ObligationRegistryScreenState
   void dispose() {
     _searchController.dispose();
     _obrNoController.dispose();
+    _activityController.dispose();
     _accountCodeController.dispose();
     _dateController.dispose();
     _payeeController.dispose();
     _grossAmountController.dispose();
+    _disbursementController.dispose();
+    _dueAndDemandableController.dispose();
     _particularController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -86,13 +93,17 @@ class _ObligationRegistryScreenState
       _isFormOpen = true;
       _editingObr = null;
       _formFundCode = '101';
+      _formMfoProgram = BrmsFormatters.mfoPrograms.first;
       _formAllotmentClass = BrmsFormatters.allotmentClasses.first;
       _formDate = DateTime.now();
       _obrNoController.clear();
+      _activityController.text = 'General Operations';
       _accountCodeController.clear();
       _dateController.text = BrmsFormatters.toDisplayDate(_formDate);
       _payeeController.clear();
       _grossAmountController.clear();
+      _disbursementController.text = '0.00';
+      _dueAndDemandableController.text = '0.00';
       _particularController.clear();
       _descriptionController.clear();
       _pickedAttachment = null;
@@ -108,16 +119,28 @@ class _ObligationRegistryScreenState
       _isFormOpen = true;
       _editingObr = obr;
       _formFundCode = obr.fundCode;
+      _formMfoProgram = BrmsFormatters.mfoPrograms.contains(obr.mfoProgram)
+          ? obr.mfoProgram
+          : BrmsFormatters.mfoPrograms.first;
       _formAllotmentClass =
           BrmsFormatters.allotmentClasses.contains(obr.allotmentClassification)
-              ? obr.allotmentClassification
-              : BrmsFormatters.allotmentClasses.first;
+          ? obr.allotmentClassification
+          : BrmsFormatters.allotmentClasses.first;
       _formDate = parsedDate;
       _obrNoController.text = obr.obrNo;
+      _activityController.text = obr.activityProject;
       _accountCodeController.text = obr.accountCode;
       _dateController.text = BrmsFormatters.toDisplayDate(parsedDate);
       _payeeController.text = obr.payee;
-      _grossAmountController.text = BrmsFormatters.formatNumber(obr.grossAmount);
+      _grossAmountController.text = BrmsFormatters.formatNumber(
+        obr.grossAmount,
+      );
+      _disbursementController.text = BrmsFormatters.formatNumber(
+        obr.disbursementAmount,
+      );
+      _dueAndDemandableController.text = BrmsFormatters.formatNumber(
+        obr.dueAndDemandable,
+      );
       _particularController.text = obr.particular;
       _descriptionController.text = obr.description ?? '';
       _pickedAttachment = null;
@@ -168,11 +191,18 @@ class _ObligationRegistryScreenState
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final obrNo = _obrNoController.text.trim();
+    final activityProject = _activityController.text.trim().isEmpty
+        ? 'General Operations'
+        : _activityController.text.trim();
     final accountCode = _accountCodeController.text.trim();
     final payee = _payeeController.text.trim();
     final particular = _particularController.text.trim();
     final description = _descriptionController.text.trim();
     final grossAmount = BrmsFormatters.parseAmount(_grossAmountController.text);
+    final disbursementAmount =
+        BrmsFormatters.parseAmount(_disbursementController.text) ?? 0.0;
+    final dueAndDemandable =
+        BrmsFormatters.parseAmount(_dueAndDemandableController.text) ?? 0.0;
 
     if (grossAmount == null || grossAmount <= 0) {
       showBrmsNotice(context, 'Enter a valid positive Gross Amount.');
@@ -218,7 +248,9 @@ class _ObligationRegistryScreenState
       String? attachmentLocalPath = _existingAttachmentLocalPath;
 
       if (_pickedAttachment != null) {
-        final saved = await ref.read(attachmentServiceProvider).saveAttachment(
+        final saved = await ref
+            .read(attachmentServiceProvider)
+            .saveAttachment(
               sourcePath: _pickedAttachment!.sourcePath,
               originalFilename: _pickedAttachment!.originalFilename,
               obrNo: obrNo,
@@ -231,12 +263,16 @@ class _ObligationRegistryScreenState
         obrNo: Value(obrNo),
         date: Value(BrmsFormatters.toIsoDate(_formDate)),
         fundCode: Value(_formFundCode),
+        mfoProgram: Value(_formMfoProgram),
+        activityProject: Value(activityProject),
         accountCode: Value(accountCode),
         allotmentClassification: Value(_formAllotmentClass),
         payee: Value(payee),
         particular: Value(particular),
         description: Value(description.isEmpty ? null : description),
         grossAmount: Value(grossAmount),
+        disbursementAmount: Value(disbursementAmount),
+        dueAndDemandable: Value(dueAndDemandable),
         attachmentFilename: Value(attachmentFilename),
         attachmentLocalPath: Value(attachmentLocalPath),
       );
@@ -286,7 +322,8 @@ class _ObligationRegistryScreenState
         if (quarter != expected) return false;
       }
       if (q.isNotEmpty) {
-        final match = r.obrNo.toLowerCase().contains(q) ||
+        final match =
+            r.obrNo.toLowerCase().contains(q) ||
             r.payee.toLowerCase().contains(q) ||
             r.particular.toLowerCase().contains(q) ||
             r.accountCode.toLowerCase().contains(q);
@@ -509,7 +546,10 @@ class _ObligationRegistryScreenState
             icon: Icons.calendar_today_outlined,
             value: _periodFilter,
             items: const [
-              DropdownMenuItem(value: 'ALL', child: Text('Period: All Quarters')),
+              DropdownMenuItem(
+                value: 'ALL',
+                child: Text('Period: All Quarters'),
+              ),
               DropdownMenuItem(value: 'Q1', child: Text('Q1 (Jan - Mar)')),
               DropdownMenuItem(value: 'Q2', child: Text('Q2 (Apr - Jun)')),
               DropdownMenuItem(value: 'Q3', child: Text('Q3 (Jul - Sep)')),
@@ -556,8 +596,8 @@ class _ObligationRegistryScreenState
       ),
       data: (allRecords) {
         final filtered = _applyFiltersAndSort(allRecords);
-        final effectiveSelectedId = _selectedObrId ??
-            (filtered.isNotEmpty ? filtered.first.id : null);
+        final effectiveSelectedId =
+            _selectedObrId ?? (filtered.isNotEmpty ? filtered.first.id : null);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -845,7 +885,8 @@ class _ObligationRegistryScreenState
           );
         }
 
-        final hasAttachment = d.attachmentFilename != null &&
+        final hasAttachment =
+            d.attachmentFilename != null &&
             d.attachmentFilename!.trim().isNotEmpty;
 
         return BrmsCard(
@@ -863,38 +904,42 @@ class _ObligationRegistryScreenState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.receipt_outlined,
-                              size: 16,
-                              color: BrmsColors.outline,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'RECORD DETAILS',
-                              style: BrmsTheme.mono(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.receipt_outlined,
+                                size: 16,
                                 color: BrmsColors.outline,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'OBR No. ${d.obrNo}',
-                          style: BrmsTheme.heading(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                              const SizedBox(width: 6),
+                              Text(
+                                'RECORD DETAILS',
+                                style: BrmsTheme.mono(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: BrmsColors.outline,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'OBR No. ${d.obrNo}',
+                            overflow: TextOverflow.ellipsis,
+                            style: BrmsTheme.heading(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -980,6 +1025,22 @@ class _ObligationRegistryScreenState
                           _MetaCell(
                             label: 'ALLOTMENT CLASSIFICATION',
                             value: d.allotmentClassification,
+                          ),
+                          const Divider(
+                            height: 16,
+                            color: BrmsColors.outlineVariant,
+                          ),
+                          _MetaCell(
+                            label: 'PROGRAM / MFO',
+                            value: d.mfoProgram,
+                          ),
+                          const Divider(
+                            height: 16,
+                            color: BrmsColors.outlineVariant,
+                          ),
+                          _MetaCell(
+                            label: 'ACTIVITY / PROJECT',
+                            value: d.activityProject,
                           ),
                         ],
                       ),
@@ -1087,24 +1148,54 @@ class _ObligationRegistryScreenState
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: BrmsColors.outlineVariant),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          const Text(
-                            'GROSS AMOUNT',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: BrmsColors.secondary,
-                              letterSpacing: 0.6,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'GROSS AMOUNT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: BrmsColors.secondary,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              Text(
+                                BrmsFormatters.formatPhp(d.grossAmount),
+                                style: BrmsTheme.mono(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            BrmsFormatters.formatPhp(d.grossAmount),
-                            style: BrmsTheme.mono(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          const Divider(
+                            height: 14,
+                            color: BrmsColors.outlineVariant,
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _MetaCell(
+                                  label: 'DISBURSEMENT',
+                                  value: BrmsFormatters.formatPhp(
+                                    d.disbursementAmount,
+                                  ),
+                                  mono: true,
+                                ),
+                              ),
+                              Expanded(
+                                child: _MetaCell(
+                                  label: 'DUE & DEMANDABLE',
+                                  value: BrmsFormatters.formatPhp(
+                                    d.dueAndDemandable,
+                                  ),
+                                  mono: true,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1259,6 +1350,9 @@ class _ObligationRegistryScreenState
     final payees = ref.watch(distinctPayeesProvider).value ?? const <String>[];
     final particulars =
         ref.watch(distinctParticularsProvider).value ?? const <String>[];
+    final activities =
+        ref.watch(distinctActivityProjectsProvider).value ??
+        const ['General Operations'];
 
     final balanceAsync = ref.watch(
       remainingBalanceProvider(
@@ -1270,9 +1364,11 @@ class _ObligationRegistryScreenState
       ),
     );
     final remainingBalance = balanceAsync.value;
-    final enteredAmount =
-        BrmsFormatters.parseAmount(_grossAmountController.text);
-    final exceedsBalance = remainingBalance != null &&
+    final enteredAmount = BrmsFormatters.parseAmount(
+      _grossAmountController.text,
+    );
+    final exceedsBalance =
+        remainingBalance != null &&
         enteredAmount != null &&
         enteredAmount > remainingBalance;
 
@@ -1293,28 +1389,31 @@ class _ObligationRegistryScreenState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _editingObr == null
-                          ? 'New Obligation Request (OBR)'
-                          : 'Edit Obligation Request (${_editingObr!.obrNo})',
-                      style: BrmsTheme.heading(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _editingObr == null
+                            ? 'New Obligation Request (OBR)'
+                            : 'Edit Obligation Request (${_editingObr!.obrNo})',
+                        style: BrmsTheme.heading(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Record and validate obligations against active fund allotments.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: BrmsColors.secondary,
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Record and validate obligations against active fund allotments.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: BrmsColors.secondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 12),
                 BrmsBadge(
                   label: _editingObr == null ? 'CREATE MODE' : 'EDIT MODE',
                   filled: true,
@@ -1331,18 +1430,18 @@ class _ObligationRegistryScreenState
                   value: activeFundCode,
                   items: funds.isNotEmpty
                       ? funds
-                          .map(
-                            (f) => DropdownMenuItem(
-                              value: f.fundCode,
-                              child: Text('${f.fundCode} - ${f.fundName}'),
-                            ),
-                          )
-                          .toList()
+                            .map(
+                              (f) => DropdownMenuItem(
+                                value: f.fundCode,
+                                child: Text('${f.fundCode} - ${f.fundName}'),
+                              ),
+                            )
+                            .toList()
                       : fundItems
-                          .map(
-                            (c) => DropdownMenuItem(value: c, child: Text(c)),
-                          )
-                          .toList(),
+                            .map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)),
+                            )
+                            .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _formFundCode = v);
                   },
@@ -1354,8 +1453,9 @@ class _ObligationRegistryScreenState
                   hintText: 'e.g., 2024-01-0001',
                   mono: true,
                   errorText: _obrUniqueError,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'OBR No. is required' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'OBR No. is required'
+                      : null,
                 );
 
                 final dateField = _buildFormTextField(
@@ -1368,6 +1468,32 @@ class _ObligationRegistryScreenState
                 );
 
                 final uacsField = _buildUacsAutocomplete(uacsList);
+
+                final programField = _buildFormDropdown<String>(
+                  label: 'PROGRAM / MFO',
+                  value: _formMfoProgram,
+                  items: BrmsFormatters.mfoPrograms
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _formMfoProgram = v);
+                  },
+                );
+
+                final activityField = _buildStringAutocomplete(
+                  label: 'ACTIVITY / PROJECT',
+                  controller: _activityController,
+                  options: activities,
+                  hintText: 'e.g., General Operations',
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Activity / Project is required'
+                      : null,
+                );
 
                 final classField = _buildFormDropdown<String>(
                   label: 'ALLOTMENT CLASSIFICATION',
@@ -1390,8 +1516,9 @@ class _ObligationRegistryScreenState
                   controller: _payeeController,
                   options: payees,
                   hintText: 'Enter or select payee',
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Payee is required' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Payee is required'
+                      : null,
                 );
 
                 final grossAmountField = Column(
@@ -1435,6 +1562,44 @@ class _ObligationRegistryScreenState
                   ],
                 );
 
+                final disbursementField = _buildFormTextField(
+                  label: 'DISBURSEMENT AMOUNT (₱)',
+                  controller: _disbursementController,
+                  prefixText: 'Php ',
+                  hintText: '0.00',
+                  mono: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final parsed = BrmsFormatters.parseAmount(v);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid non-negative amount';
+                    }
+                    return null;
+                  },
+                );
+
+                final dueAndDemandableField = _buildFormTextField(
+                  label: 'DUE AND DEMANDABLE (₱)',
+                  controller: _dueAndDemandableController,
+                  prefixText: 'Php ',
+                  hintText: '0.00',
+                  mono: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final parsed = BrmsFormatters.parseAmount(v);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid non-negative amount';
+                    }
+                    return null;
+                  },
+                );
+
                 final particularField = _buildStringAutocomplete(
                   label: 'PARTICULAR',
                   controller: _particularController,
@@ -1464,6 +1629,10 @@ class _ObligationRegistryScreenState
                       const SizedBox(height: 16),
                       dateField,
                       const SizedBox(height: 16),
+                      programField,
+                      const SizedBox(height: 16),
+                      activityField,
+                      const SizedBox(height: 16),
                       uacsField,
                       const SizedBox(height: 16),
                       classField,
@@ -1471,6 +1640,10 @@ class _ObligationRegistryScreenState
                       payeeField,
                       const SizedBox(height: 16),
                       grossAmountField,
+                      const SizedBox(height: 16),
+                      disbursementField,
+                      const SizedBox(height: 16),
+                      dueAndDemandableField,
                       const SizedBox(height: 16),
                       particularField,
                       const SizedBox(height: 16),
@@ -1498,6 +1671,15 @@ class _ObligationRegistryScreenState
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Expanded(child: programField),
+                        const SizedBox(width: 20),
+                        Expanded(child: activityField),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Expanded(child: uacsField),
                         const SizedBox(width: 20),
                         Expanded(child: classField),
@@ -1510,6 +1692,15 @@ class _ObligationRegistryScreenState
                         Expanded(child: payeeField),
                         const SizedBox(width: 20),
                         Expanded(child: grossAmountField),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: disbursementField),
+                        const SizedBox(width: 20),
+                        Expanded(child: dueAndDemandableField),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -1539,9 +1730,9 @@ class _ObligationRegistryScreenState
                   onPressed: _isSaving
                       ? null
                       : () => _saveForm(
-                            uacsList: uacsList,
-                            remainingBalance: remainingBalance,
-                          ),
+                          uacsList: uacsList,
+                          remainingBalance: remainingBalance,
+                        ),
                 ),
               ],
             ),
@@ -1580,8 +1771,9 @@ class _ObligationRegistryScreenState
           onSelected: (selected) {
             setState(() {
               _accountCodeController.text = selected.accountCode;
-              if (BrmsFormatters.allotmentClasses
-                  .contains(selected.allotmentClass)) {
+              if (BrmsFormatters.allotmentClasses.contains(
+                selected.allotmentClass,
+              )) {
                 _formAllotmentClass = selected.allotmentClass;
               }
             });
@@ -1618,7 +1810,10 @@ class _ObligationRegistryScreenState
                 borderRadius: BorderRadius.circular(8),
                 color: BrmsColors.surface,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 220, maxWidth: 420),
+                  constraints: const BoxConstraints(
+                    maxHeight: 220,
+                    maxWidth: 420,
+                  ),
                   child: ListView.builder(
                     padding: EdgeInsets.zero,
                     shrinkWrap: true,
@@ -1704,7 +1899,8 @@ class _ObligationRegistryScreenState
   }
 
   Widget _buildAttachmentPickerBox() {
-    final displayName = _pickedAttachment?.originalFilename ??
+    final displayName =
+        _pickedAttachment?.originalFilename ??
         _existingAttachmentFilename ??
         'No PDF attached';
 

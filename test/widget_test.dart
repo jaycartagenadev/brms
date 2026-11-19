@@ -1,6 +1,19 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:brms/data/database/app_database.dart';
 import 'package:brms/main.dart';
+import 'package:brms/providers/brms_providers.dart';
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Widget _buildSmokeApp(AppDatabase db) {
+  return ProviderScope(
+    overrides: [
+      databaseProvider.overrideWithValue(db),
+    ],
+    child: const BrmsApp(),
+  );
+}
 
 void main() {
   testWidgets('BRMS auth gate and desktop shell navigation smoke test', (
@@ -11,7 +24,10 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const BrmsApp());
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() => tester.runAsync(db.close));
+
+    await tester.pumpWidget(_buildSmokeApp(db));
 
     // Starts on Offline Authentication Gate.
     expect(find.text('CAGAYAN STATE UNIVERSITY'), findsOneWidget);
@@ -59,6 +75,10 @@ void main() {
     await tester.tap(find.byTooltip('Sign Out'));
     await tester.pumpAndSettle();
     expect(find.text('CAGAYAN STATE UNIVERSITY'), findsOneWidget);
+
+    // Unmount and flush Drift's zero-duration StreamQueryStore cleanup timer.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 10));
   });
 
   testWidgets('BRMS renders without overflow at minimum tablet size (768x600)', (
@@ -69,7 +89,10 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const BrmsApp());
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() => tester.runAsync(db.close));
+
+    await tester.pumpWidget(_buildSmokeApp(db));
     expect(find.text('Sign In'), findsOneWidget);
 
     await tester.tap(find.text('Sign In'));
@@ -89,5 +112,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('FAR 2'));
     await tester.pumpAndSettle();
+
+    // Unmount and flush Drift's zero-duration StreamQueryStore cleanup timer.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 10));
   });
 }

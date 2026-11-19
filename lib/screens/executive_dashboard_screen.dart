@@ -1,218 +1,93 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/brms_models.dart';
+import '../providers/brms_providers.dart';
+import '../providers/dashboard_provider.dart';
 import '../theme/brms_theme.dart';
+import '../utils/brms_formatters.dart';
 import '../widgets/brms_common.dart';
 
 /// Screen 2: BRMS CSU Aparri - Executive Dashboard (Monochrome).
-class ExecutiveDashboardScreen extends StatefulWidget {
+class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key, required this.onNavigate});
 
   final ValueChanged<BrmsModule> onNavigate;
 
   @override
-  State<ExecutiveDashboardScreen> createState() =>
+  ConsumerState<ExecutiveDashboardScreen> createState() =>
       _ExecutiveDashboardScreenState();
 }
 
-class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
-  String _selectedFundFilter = 'All Funds (101, 161, 164, 184)';
+class _ExecutiveDashboardScreenState
+    extends ConsumerState<ExecutiveDashboardScreen> {
+  String _selectedFundFilter = 'ALL';
   String _selectedStatusFilter = 'All Statuses';
-  String _selectedFy = '2024-2025';
+  String _selectedFy = 'ALL';
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
   int? _hoveredQuarterIndex;
   int? _hoveredUnitIndex;
 
-  void _openNewObrDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: BrmsColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                decoration: const BoxDecoration(
-                  color: BrmsColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-                  border: Border(
-                    bottom: BorderSide(color: BrmsColors.outlineVariant),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.receipt_long,
-                      size: 20,
-                      color: BrmsColors.onSurface,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Create Obligation Request and Status (ORS / OBR)',
-                        style: BrmsTheme.heading(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close, size: 18),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ModalDropdownField(
-                            label: 'FUND CLUSTER',
-                            value: '101 - Regular Agency Fund',
-                            items: const [
-                              '101 - Regular Agency Fund',
-                              '161 - Income Generating Project',
-                              '164 - Internally Generated Fund',
-                              '184 - Research / Special Grants',
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _ModalDropdownField(
-                            label: 'EXPENSE CLASS',
-                            value: 'Personnel Services (PS)',
-                            items: const [
-                              'Personnel Services (PS)',
-                              'Maintenance & Other Operating Exp (MOOE)',
-                              'Capital Outlays (CO)',
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const _ModalTextField(
-                      label: 'PAYEE / CLAIMANT',
-                      hint:
-                          'e.g. Cagayan Electric Cooperative II or Faculty Name',
-                    ),
-                    const SizedBox(height: 12),
-                    const Row(
-                      children: [
-                        Expanded(
-                          child: _ModalTextField(
-                            label: 'UACS OBJECT CODE',
-                            hint: 'e.g. 5-02-03-010',
-                          ),
-                        ),
-                        SizedBox(width: 14),
-                        Expanded(
-                          child: _ModalTextField(
-                            label: 'AMOUNT (PHP)',
-                            hint: '0.00',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const _ModalTextField(
-                      label: 'PARTICULARS',
-                      hint:
-                          'State the statutory purpose, procurement batch, and purchase order reference...',
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: const BoxDecoration(
-                  color: BrmsColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(14),
-                  ),
-                  border: Border(
-                    top: BorderSide(color: BrmsColors.outlineVariant),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    BrmsButton(
-                      label: 'Cancel',
-                      primary: false,
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                    const SizedBox(width: 8),
-                    BrmsButton(
-                      label: 'Post Obligation Request',
-                      icon: Icons.check,
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        showBrmsNotice(
-                          context,
-                          'OBR preview submitted (static UI showcase).',
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildCommandStrip(context),
-        const SizedBox(height: 20),
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1600),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildKpiRow(context),
-                  const SizedBox(height: 20),
-                  _buildAnalyticsSection(context),
-                  const SizedBox(height: 20),
-                  _buildSplitCanvas(context),
-                  const SizedBox(height: 20),
-                  _buildRecentObrCard(context),
-                  const SizedBox(height: 20),
-                  _buildLedgerFooter(),
-                ],
+    final summaryAsync = ref.watch(dashboardSummaryProvider(_selectedFy));
+
+    return summaryAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(48),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (err, _) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: BrmsErrorState(
+            title: 'Failed to load dashboard summary',
+            error: err,
+            onRetry: () {
+              ref.invalidate(databaseProvider);
+              ref.invalidate(dashboardSummaryProvider(_selectedFy));
+            },
+          ),
+        ),
+      ),
+      data: (data) => Column(
+        children: [
+          _buildCommandStrip(context, data),
+          const SizedBox(height: 20),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1600),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildKpiRow(context, data),
+                    const SizedBox(height: 20),
+                    _buildAnalyticsSection(context, data),
+                    const SizedBox(height: 20),
+                    _buildSplitCanvas(context, data),
+                    const SizedBox(height: 20),
+                    _buildRecentObrCard(context, data),
+                    const SizedBox(height: 20),
+                    _buildLedgerFooter(),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildCommandStrip(BuildContext context) {
+  Widget _buildCommandStrip(BuildContext context, DashboardSummaryData data) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -241,6 +116,8 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                     width: 340,
                     height: 36,
                     child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _searchQuery = v),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(
                           Icons.search,
@@ -303,14 +180,16 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: '2024-2025',
-                                child: Text('2024-2025'),
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All Years'),
                               ),
-                              DropdownMenuItem(
-                                value: '2023-2024',
-                                child: Text('2023-2024'),
+                              ...BrmsFormatters.fiscalYears.map(
+                                (fy) => DropdownMenuItem(
+                                  value: fy,
+                                  child: Text(fy),
+                                ),
                               ),
                             ],
                             onChanged: (val) {
@@ -335,7 +214,10 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const BrmsBadge(label: '142', filled: true),
+                        BrmsBadge(
+                          label: '${data.totalObrCount}',
+                          filled: true,
+                        ),
                       ],
                     ),
                   ),
@@ -371,7 +253,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '142',
+                          '${data.totalObrCount}',
                           style: BrmsTheme.mono(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -389,14 +271,21 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildKpiRow(BuildContext context) {
+  Widget _buildKpiRow(BuildContext context, DashboardSummaryData data) {
+    final utilizedPct = (data.utilizationRatio * 100).toStringAsFixed(1);
+    final remainingPct = (data.remainingRatio * 100).toStringAsFixed(1);
+    final disbursedPct = data.totalObligated > 0
+        ? ((data.totalDisbursed / data.totalObligated) * 100).toStringAsFixed(1)
+        : '0.0';
+    final unpaidAmount = data.totalObligated - data.totalDisbursed;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isStacked = constraints.maxWidth < 860;
         final cards = [
           _KpiSummaryCard(
             title: 'TOTAL BUDGET ALLOCATION',
-            value: '₱ 48,250,000.00',
+            value: '₱ ${BrmsFormatters.formatNumber(data.totalAllotment)}',
             badge: '100% AUTHORIZED',
             middle: const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -426,7 +315,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 ),
                 SizedBox(width: 8),
                 Text(
-                  'NBC 592 GAA',
+                  'LOCAL SQLITE',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -435,22 +324,22 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 ),
               ],
             ),
-            footerLeft: 'GAA Current: ₱42.1M',
-            footerRight: 'Continuing Approp: ₱6.15M',
+            footerLeft: 'Active Entries: ${data.activeAllocationsCount}',
+            footerRight: 'Hidden: ${data.hiddenAllocationsCount}',
           ),
           _KpiSummaryCard(
             title: 'TOTAL BUDGET UTILIZATION',
-            value: '₱ 31,845,210.50',
-            badge: '66.0% UTILIZED',
-            middle: const Column(
+            value: '₱ ${BrmsFormatters.formatNumber(data.totalObligated)}',
+            badge: '$utilizedPct% UTILIZED',
+            middle: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                BrmsProgressBar(value: 0.66),
-                SizedBox(height: 6),
+                BrmsProgressBar(value: data.utilizationRatio),
+                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Flexible(
+                    const Flexible(
                       child: Text(
                         'Cumulative Obligations Incurred',
                         overflow: TextOverflow.ellipsis,
@@ -460,10 +349,10 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      'Target: 70.0% by Q3',
-                      style: TextStyle(
+                      '${data.totalObrCount} OBR(s)',
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: BrmsColors.onSurface,
@@ -473,17 +362,19 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 ),
               ],
             ),
-            footerLeft: 'Disbursed: ₱28,490,110.00 (89.5%)',
-            footerRight: 'Unpaid OBRs: ₱3.35M',
+            footerLeft:
+                'Disbursed: ₱${BrmsFormatters.formatNumber(data.totalDisbursed)} ($disbursedPct%)',
+            footerRight:
+                'Unpaid OBRs: ₱${BrmsFormatters.formatNumber(unpaidAmount)}',
           ),
           _KpiSummaryCard(
             title: 'TOTAL UNOBLIGATED BALANCE',
-            value: '₱ 16,404,789.50',
-            badge: '34.0% REMAINING',
-            middle: const Row(
+            value: '₱ ${BrmsFormatters.formatNumber(data.totalUnobligated)}',
+            badge: '$remainingPct% REMAINING',
+            middle: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(
+                const Flexible(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -506,10 +397,10 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                     ],
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  'OPTIMAL SOLVENCY',
-                  style: TextStyle(
+                  data.totalUnobligated >= 0 ? 'OPTIMAL SOLVENCY' : 'OVERDRAWN',
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: BrmsColors.secondary,
@@ -518,8 +409,8 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 ),
               ],
             ),
-            footerLeft: 'Expiring Q4 (Dec 31): ₱4.2M',
-            footerRight: 'Continuing Funds: ₱12.2M',
+            footerLeft: 'Fund Clusters: ${data.fundClusters.length}',
+            footerRight: 'FY: ${_selectedFy == 'ALL' ? 'All Years' : _selectedFy}',
           ),
         ];
 
@@ -548,12 +439,12 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildSplitCanvas(BuildContext context) {
+  Widget _buildSplitCanvas(BuildContext context, DashboardSummaryData data) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 1020;
-        final leftPanel = _buildFundSourcePanel();
-        final rightPanel = _buildAllotmentClassPanel();
+        final leftPanel = _buildFundSourcePanel(data);
+        final rightPanel = _buildAllotmentClassPanel(data);
 
         if (!isWide) {
           return Column(
@@ -573,7 +464,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildFundSourcePanel() {
+  Widget _buildFundSourcePanel(DashboardSummaryData data) {
     return BrmsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -603,11 +494,11 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                   ],
                 ),
               ),
-              const BrmsBadge(label: '4 Active Clusters'),
+              BrmsBadge(label: '${data.fundClusters.length} Active Clusters'),
             ],
           ),
           const Divider(height: 24, color: BrmsColors.outlineVariant),
-          ...BrmsMockData.fundClusters.map(
+          ...data.fundClusters.map(
             (fund) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Container(
@@ -689,7 +580,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                               ),
                             ),
                             Text(
-                              fund.allotment,
+                              BrmsFormatters.formatPhp(fund.allotment),
                               style: BrmsTheme.mono(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -705,7 +596,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            'Obligated: ${fund.obligated} (${(fund.percent * 100).toStringAsFixed(1)}%)',
+                            'Obligated: ${BrmsFormatters.formatPhp(fund.obligated)} (${(fund.percent * 100).toStringAsFixed(1)}%)',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 11,
@@ -717,7 +608,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(
-                            'Unobligated Balance: ${fund.unobligated}',
+                            'Unobligated Balance: ${BrmsFormatters.formatPhp(fund.unobligated)}',
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
                             style: const TextStyle(
@@ -741,7 +632,17 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildAllotmentClassPanel() {
+  Widget _buildAllotmentClassPanel(DashboardSummaryData data) {
+    final psClass = data.expenseClasses[0];
+    final mooeClass = data.expenseClasses[1];
+    final coClass = data.expenseClasses[2];
+    final hasAnyPool =
+        psClass.sharePercent + mooeClass.sharePercent + coClass.sharePercent >
+            0;
+    final psFlex = hasAnyPool ? psClass.sharePercent.clamp(1, 100) : 1;
+    final mooeFlex = hasAnyPool ? mooeClass.sharePercent.clamp(1, 100) : 1;
+    final coFlex = hasAnyPool ? coClass.sharePercent.clamp(1, 100) : 1;
+
     return BrmsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -807,7 +708,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '₱48,250,000 Total Pool',
+                      '₱${BrmsFormatters.formatNumber(data.totalAllotment)} Total Pool',
                       style: BrmsTheme.mono(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -818,21 +719,21 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
-                  child: const SizedBox(
+                  child: SizedBox(
                     height: 8,
                     child: Row(
                       children: [
                         Expanded(
-                          flex: 52,
-                          child: ColoredBox(color: BrmsColors.primary),
+                          flex: psFlex,
+                          child: const ColoredBox(color: BrmsColors.primary),
                         ),
                         Expanded(
-                          flex: 33,
-                          child: ColoredBox(color: BrmsColors.barMedium),
+                          flex: mooeFlex,
+                          child: const ColoredBox(color: BrmsColors.barMedium),
                         ),
                         Expanded(
-                          flex: 15,
-                          child: ColoredBox(color: BrmsColors.barLight),
+                          flex: coFlex,
+                          child: const ColoredBox(color: BrmsColors.barLight),
                         ),
                       ],
                     ),
@@ -846,15 +747,15 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                   children: [
                     _LegendItem(
                       color: BrmsColors.primary,
-                      label: 'Personnel (52%)',
+                      label: 'Personnel (${psClass.sharePercent}%)',
                     ),
                     _LegendItem(
                       color: BrmsColors.barMedium,
-                      label: 'MOOE (33%)',
+                      label: 'MOOE (${mooeClass.sharePercent}%)',
                     ),
                     _LegendItem(
                       color: BrmsColors.barLight,
-                      label: 'Capital Outlays (15%)',
+                      label: 'Capital Outlays (${coClass.sharePercent}%)',
                     ),
                   ],
                 ),
@@ -862,7 +763,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          ...BrmsMockData.expenseClasses.map(
+          ...data.expenseClasses.map(
             (item) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Container(
@@ -897,7 +798,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                           ),
                         ),
                         Text(
-                          item.amount,
+                          BrmsFormatters.formatPhp(item.allotment),
                           style: BrmsTheme.mono(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -911,7 +812,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            item.obligatedText,
+                            'Obligated: ${BrmsFormatters.formatPhp(item.obligated)} (${(item.ratio * 100).toStringAsFixed(1)}%)',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 11,
@@ -922,7 +823,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(
-                            item.rightMeta,
+                            'Remaining: ${BrmsFormatters.formatPhp(item.unobligated)}',
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
                             style: const TextStyle(
@@ -989,12 +890,15 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildAnalyticsSection(BuildContext context) {
+  Widget _buildAnalyticsSection(
+    BuildContext context,
+    DashboardSummaryData data,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 1020;
-        final burnCard = _buildQuarterlyBurnCard();
-        final unitCard = _buildCampusUnitsCard();
+        final burnCard = _buildQuarterlyBurnCard(data);
+        final unitCard = _buildCampusUnitsCard(data);
 
         if (!isWide) {
           return Column(
@@ -1014,12 +918,17 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildQuarterlyBurnCard() {
-    const maxScaleMillions = 15.0;
+  Widget _buildQuarterlyBurnCard(DashboardSummaryData data) {
     const targetPaceMillions = 10.5;
     const chartHeight = 148.0;
-    final points = BrmsMockData.quarterlyBurn;
-    final hoveredPoint = _hoveredQuarterIndex != null
+    final points = data.quarterlyBurn;
+    final maxObserved = points.fold<double>(
+      15.0,
+      (m, p) => p.obligatedMillions > m ? p.obligatedMillions : m,
+    );
+    final maxScaleMillions = maxObserved;
+    final hoveredPoint = _hoveredQuarterIndex != null &&
+            _hoveredQuarterIndex! < points.length
         ? points[_hoveredQuarterIndex!]
         : null;
 
@@ -1027,6 +936,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
       if (idx == 0) return 'Baseline Q1';
       final prev = points[idx - 1].obligatedMillions;
       final curr = points[idx].obligatedMillions;
+      if (prev <= 0) return curr > 0 ? '+100.0% vs Q$idx' : '0.0% vs Q$idx';
       final pct = ((curr - prev) / prev) * 100;
       final sign = pct >= 0 ? '+' : '';
       return '$sign${pct.toStringAsFixed(1)}% vs Q$idx';
@@ -1159,7 +1069,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                         ),
                       ),
                       Text(
-                        'Disbursed: ₱${hoveredPoint.disbursedMillions.toStringAsFixed(2)}M (${((hoveredPoint.disbursedMillions / hoveredPoint.obligatedMillions) * 100).toStringAsFixed(1)}%)',
+                        'Disbursed: ₱${hoveredPoint.disbursedMillions.toStringAsFixed(2)}M (${hoveredPoint.obligatedMillions > 0 ? ((hoveredPoint.disbursedMillions / hoveredPoint.obligatedMillions) * 100).toStringAsFixed(1) : '0.0'}%)',
                         style: BrmsTheme.mono(
                           fontSize: 11,
                           color: const Color(0xFFE2E8F0),
@@ -1260,10 +1170,11 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                                 final disbFraction =
                                     (point.disbursedMillions / maxScaleMillions)
                                         .clamp(0.0, 1.0);
-                                final liqPct =
-                                    (point.disbursedMillions /
-                                        point.obligatedMillions) *
-                                    100;
+                                final liqPct = point.obligatedMillions > 0
+                                    ? (point.disbursedMillions /
+                                            point.obligatedMillions) *
+                                        100
+                                    : 0.0;
 
                                 return Expanded(
                                   child: MouseRegion(
@@ -1431,28 +1342,40 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
           ),
           const SizedBox(height: 12),
           // Bottom Analytical Highlights
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: const [
-              _AnalyticsStatPill(label: 'AVG. MONTHLY BURN', value: '₱ 2.65M'),
-              _AnalyticsStatPill(
-                label: 'Q3 VELOCITY VARIANCE',
-                value: '+6.7% vs Q2',
-              ),
-              _AnalyticsStatPill(
-                label: 'UNPAID OBLIGATION LAG',
-                value: '10.5% (₱ 3.35M)',
-              ),
-            ],
+          Builder(
+            builder: (context) {
+              final avgQtr = data.totalObligated / 4.0 / 1000000.0;
+              final unpaid = data.totalObligated - data.totalDisbursed;
+              final unpaidPct = data.totalObligated > 0
+                  ? ((unpaid / data.totalObligated) * 100).toStringAsFixed(1)
+                  : '0.0';
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _AnalyticsStatPill(
+                    label: 'AVG. QUARTERLY BURN',
+                    value: '₱ ${avgQtr.toStringAsFixed(2)}M',
+                  ),
+                  _AnalyticsStatPill(
+                    label: 'Q3 VELOCITY VARIANCE',
+                    value: qoqDeltaLabel(2),
+                  ),
+                  _AnalyticsStatPill(
+                    label: 'UNPAID OBLIGATION LAG',
+                    value: '$unpaidPct% (₱ ${(unpaid / 1000000.0).toStringAsFixed(2)}M)',
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCampusUnitsCard() {
-    final units = BrmsMockData.campusUnits;
+  Widget _buildCampusUnitsCard(DashboardSummaryData data) {
+    final units = data.payeeUnits;
     return BrmsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1465,7 +1388,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Campus Unit Absorption',
+                      'Campus Unit & Payee Absorption',
                       style: BrmsTheme.heading(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -1473,7 +1396,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Budget utilization by academic & administrative unit (hover for details)',
+                      'Top obligation share by payee / unit (hover for details)',
                       style: TextStyle(
                         fontSize: 12,
                         color: BrmsColors.secondary,
@@ -1490,102 +1413,114 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
             ],
           ),
           const Divider(height: 24, color: BrmsColors.outlineVariant),
-          ...List.generate(units.length, (index) {
-            final unit = units[index];
-            final isHovered = _hoveredUnitIndex == index;
-            final remainingPct = ((1.0 - unit.ratio) * 100).toStringAsFixed(1);
-            return MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onEnter: (_) => setState(() => _hoveredUnitIndex = index),
-              onExit: (_) => setState(() => _hoveredUnitIndex = null),
-              child: Tooltip(
-                message:
-                    '${unit.unitName}\nUtilized: ${unit.spentLabel} (${(unit.ratio * 100).toStringAsFixed(1)}%)\nRemaining Capacity: $remainingPct%',
-                waitDuration: const Duration(milliseconds: 180),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 140),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isHovered
-                        ? BrmsColors.surfaceContainerLow
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isHovered
-                          ? BrmsColors.outlineVariant
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              unit.unitName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: BrmsColors.onSurface,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${(unit.ratio * 100).toStringAsFixed(1)}%',
-                            style: BrmsTheme.mono(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      BrmsProgressBar(
-                        value: unit.ratio,
-                        height: isHovered ? 7 : 6,
-                        barColor: unit.ratio >= 0.70 || isHovered
-                            ? BrmsColors.primary
-                            : BrmsColors.barMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              unit.spentLabel,
-                              overflow: TextOverflow.ellipsis,
-                              style: BrmsTheme.mono(
-                                fontSize: 10,
-                                color: BrmsColors.secondary,
-                              ),
-                            ),
-                          ),
-                          if (isHovered)
-                            Text(
-                              '$remainingPct% remaining',
-                              style: BrmsTheme.mono(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: BrmsColors.onSurface,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+          if (units.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: Text(
+                  'No obligations recorded yet.',
+                  style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
                 ),
               ),
-            );
-          }),
+            )
+          else
+            ...List.generate(units.length, (index) {
+              final unit = units[index];
+              final isHovered = _hoveredUnitIndex == index;
+              final remainingPct = ((1.0 - unit.ratio) * 100).toStringAsFixed(1);
+              final spentLabel = BrmsFormatters.formatPhp(unit.spent);
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => _hoveredUnitIndex = index),
+                onExit: (_) => setState(() => _hoveredUnitIndex = null),
+                child: Tooltip(
+                  message:
+                      '${unit.name}\nObligated: $spentLabel (${(unit.ratio * 100).toStringAsFixed(1)}%)\nOther Share: $remainingPct%',
+                  waitDuration: const Duration(milliseconds: 180),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isHovered
+                          ? BrmsColors.surfaceContainerLow
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isHovered
+                            ? BrmsColors.outlineVariant
+                            : Colors.transparent,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                unit.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: BrmsColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${(unit.ratio * 100).toStringAsFixed(1)}%',
+                              style: BrmsTheme.mono(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        BrmsProgressBar(
+                          value: unit.ratio,
+                          height: isHovered ? 7 : 6,
+                          barColor: unit.ratio >= 0.70 || isHovered
+                              ? BrmsColors.primary
+                              : BrmsColors.barMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                spentLabel,
+                                overflow: TextOverflow.ellipsis,
+                                style: BrmsTheme.mono(
+                                  fontSize: 10,
+                                  color: BrmsColors.secondary,
+                                ),
+                              ),
+                            ),
+                            if (isHovered)
+                              Text(
+                                '$remainingPct% remaining share',
+                                style: BrmsTheme.mono(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: BrmsColors.onSurface,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.all(12),
@@ -1621,7 +1556,38 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
     );
   }
 
-  Widget _buildRecentObrCard(BuildContext context) {
+  Widget _buildRecentObrCard(
+    BuildContext context,
+    DashboardSummaryData data,
+  ) {
+    final q = _searchQuery.trim().toLowerCase();
+    final filteredRows = data.allObrItems.where((row) {
+      if (_selectedFundFilter != 'ALL' && row.fundCode != _selectedFundFilter) {
+        return false;
+      }
+      if (_selectedStatusFilter != 'All Statuses' &&
+          row.status != _selectedStatusFilter) {
+        return false;
+      }
+      if (q.isNotEmpty) {
+        final match = row.obrNo.toLowerCase().contains(q) ||
+            row.payee.toLowerCase().contains(q) ||
+            row.particulars.toLowerCase().contains(q) ||
+            row.accountCode.toLowerCase().contains(q);
+        if (!match) return false;
+      }
+      return true;
+    }).toList();
+    final visibleRows = filteredRows.take(10).toList();
+
+    final fundFilterItems = <String>[
+      'ALL',
+      ...data.fundClusters.map((f) => f.code),
+    ];
+    final activeFundFilter = fundFilterItems.contains(_selectedFundFilter)
+        ? _selectedFundFilter
+        : 'ALL';
+
     return BrmsCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -1690,16 +1656,23 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                   children: [
                     _FilterDropdownPill(
                       label: 'FILTER FUND:',
-                      value: _selectedFundFilter,
-                      items: const [
+                      value: activeFundFilter == 'ALL'
+                          ? 'All Funds (101, 161, 164, 184)'
+                          : 'Fund $activeFundFilter',
+                      items: [
                         'All Funds (101, 161, 164, 184)',
-                        'Fund 101 (Regular Agency)',
-                        'Fund 161 (Income Generated)',
-                        'Fund 164 (Tuition & Trust)',
-                        'Fund 184 (Research Grants)',
+                        ...data.fundClusters.map((f) => 'Fund ${f.code}'),
                       ],
                       onChanged: (v) {
-                        if (v != null) setState(() => _selectedFundFilter = v);
+                        if (v == null) return;
+                        setState(() {
+                          if (v.startsWith('All Funds')) {
+                            _selectedFundFilter = 'ALL';
+                          } else {
+                            _selectedFundFilter =
+                                v.replaceFirst('Fund ', '').trim();
+                          }
+                        });
                       },
                     ),
                     _FilterDropdownPill(
@@ -1724,7 +1697,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                       height: 32,
                       onPressed: () => showBrmsNotice(
                         context,
-                        'Exported 142 OBR rows to CSV (showcase).',
+                        'Showing ${filteredRows.length} OBR rows.',
                       ),
                     ),
                   ],
@@ -1756,7 +1729,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                 DataColumn(label: Text('STATUS')),
                 DataColumn(label: Text('ACTION')),
               ],
-              rows: BrmsMockData.dashboardObrRows.map((row) {
+              rows: visibleRows.map((row) {
                 return DataRow(
                   cells: [
                     DataCell(
@@ -1818,7 +1791,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
                     ),
                     DataCell(
                       Text(
-                        row.amount,
+                        BrmsFormatters.formatPhp(row.grossAmount),
                         style: BrmsTheme.mono(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1867,7 +1840,7 @@ class _ExecutiveDashboardScreenState extends State<ExecutiveDashboardScreen> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
-                  'Showing 5 of 142 Active OBR entries  |  Page 1 of 29',
+                  'Showing ${visibleRows.length} of ${filteredRows.length} Active OBR entries',
                   style: BrmsTheme.mono(
                     fontSize: 11,
                     color: BrmsColors.secondary,
@@ -2114,107 +2087,6 @@ class _FilterDropdownPill extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ModalDropdownField extends StatelessWidget {
-  const _ModalDropdownField({
-    required this.label,
-    required this.value,
-    required this.items,
-  });
-
-  final String label;
-  final String value;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: BrmsColors.secondary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        DropdownButtonFormField<String>(
-          initialValue: value,
-          isDense: true,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: BrmsColors.surfaceContainerLow,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: BrmsColors.outlineVariant),
-            ),
-          ),
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-              .toList(),
-          onChanged: (_) {},
-        ),
-      ],
-    );
-  }
-}
-
-class _ModalTextField extends StatelessWidget {
-  const _ModalTextField({
-    required this.label,
-    required this.hint,
-    this.maxLines = 1,
-  });
-
-  final String label;
-  final String hint;
-  final int maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: BrmsColors.secondary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        TextField(
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(
-              fontSize: 12,
-              color: BrmsColors.secondary,
-            ),
-            filled: true,
-            fillColor: BrmsColors.surfaceContainerLow,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: BrmsColors.outlineVariant),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
