@@ -556,9 +556,13 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
             ),
             error: (err, _) => Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                'Error loading allocations: $err',
-                style: const TextStyle(color: BrmsColors.error, fontSize: 12),
+              child: BrmsErrorState(
+                title: 'Failed to load budget allocations',
+                error: err,
+                onRetry: () {
+                  ref.invalidate(databaseProvider);
+                  ref.invalidate(budgetAllocationsProvider);
+                },
               ),
             ),
             data: (rows) {

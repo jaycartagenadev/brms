@@ -545,9 +545,13 @@ class _ObligationRegistryScreenState
       ),
       error: (err, _) => BrmsCard(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          'Failed to load obligations: $err',
-          style: const TextStyle(color: BrmsColors.error, fontSize: 12),
+        child: BrmsErrorState(
+          title: 'Failed to load obligations',
+          error: err,
+          onRetry: () {
+            ref.invalidate(databaseProvider);
+            ref.invalidate(obligationRegistriesProvider);
+          },
         ),
       ),
       data: (allRecords) {
@@ -819,9 +823,13 @@ class _ObligationRegistryScreenState
       ),
       error: (err, _) => BrmsCard(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          'Error loading record: $err',
-          style: const TextStyle(color: BrmsColors.error, fontSize: 12),
+        child: BrmsErrorState(
+          title: 'Failed to load obligation record',
+          error: err,
+          onRetry: () {
+            ref.invalidate(databaseProvider);
+            ref.invalidate(obligationByIdProvider(selectedId));
+          },
         ),
       ),
       data: (d) {

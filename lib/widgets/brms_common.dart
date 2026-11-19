@@ -161,6 +161,73 @@ class BrmsButton extends StatelessWidget {
   }
 }
 
+/// Monochrome error recovery state with a retry action.
+class BrmsErrorState extends StatelessWidget {
+  const BrmsErrorState({
+    super.key,
+    required this.title,
+    required this.error,
+    required this.onRetry,
+  });
+
+  final String title;
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: BrmsColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: BrmsColors.outlineVariant),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.error_outline,
+            size: 28,
+            color: BrmsColors.error,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: BrmsTheme.heading(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Text(
+              error.toString(),
+              style: BrmsTheme.mono(
+                fontSize: 11,
+                color: BrmsColors.secondary,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 14),
+          BrmsButton(
+            label: 'Retry',
+            icon: Icons.refresh,
+            primary: false,
+            height: 32,
+            onPressed: onRetry,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Shows a clean monochrome toast/snackbar notification.
 void showBrmsNotice(BuildContext context, String message) {
   ScaffoldMessenger.of(context)

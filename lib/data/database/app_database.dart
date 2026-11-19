@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -341,8 +342,14 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'Local SQLite persistence is only supported on Desktop (Windows/macOS/Linux).',
+      );
+    }
     final docsDir = await getApplicationDocumentsDirectory();
     final dbFile = File(p.join(docsDir.path, 'brms_database.sqlite'));
-    return NativeDatabase.createInBackground(dbFile);
+    await dbFile.parent.create(recursive: true);
+    return NativeDatabase(dbFile);
   });
 }
