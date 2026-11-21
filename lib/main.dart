@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/auth_gate_screen.dart';
@@ -6,6 +8,19 @@ import 'widgets/brms_shell.dart';
 
 void main() {
   runApp(const ProviderScope(child: BrmsApp()));
+}
+
+class _BrmsScrollBehavior extends MaterialScrollBehavior {
+  const _BrmsScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+      };
 }
 
 /// CSU-Aparri Budget Resource Monitoring System (BRMS) Desktop & Web App.
@@ -27,6 +42,7 @@ class _BrmsAppState extends State<BrmsApp> {
     return MaterialApp(
       title: 'CSU-Aparri BRMS',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const _BrmsScrollBehavior(),
       theme: BrmsTheme.light(),
       builder: (context, child) {
         return LayoutBuilder(

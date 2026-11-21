@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
@@ -686,6 +687,11 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
               height: 32,
               child: TextField(
                 controller: _searchController,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(
+                    BrmsInputLimits.maxSearchLength,
+                  ),
+                ],
                 onChanged: (v) => setState(() => _searchQuery = v),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(
@@ -1149,8 +1155,8 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
           final usePinnedSplit = constraints.maxWidth > leftWidth + 240;
 
           if (!usePinnedSplit) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            return BrmsHorizontalTableScroll(
+              showTopScrollbar: true,
               child: SizedBox(
                 width: leftWidth + rightWidth,
                 child: Column(
@@ -1220,11 +1226,25 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
             children: [
               // Pinned Header Row (Left Classification + Right Scrollable Metrics)
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   SizedBox(
                     width: leftWidth,
                     child: Column(
                       children: [
+                        Container(
+                          width: leftWidth,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: BrmsColors.surfaceContainerLow,
+                            border: Border(
+                              right: BorderSide(
+                                color: BrmsColors.outlineVariant,
+                                width: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
                         Container(
                           width: leftWidth,
                           height: 30,
@@ -1252,47 +1272,56 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                     ),
                   ),
                   Expanded(
-                    child: SingleChildScrollView(
+                    child: Scrollbar(
                       controller: _rightHeaderScroll,
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: rightWidth,
-                        child: Column(
-                          children: [
-                            Row(
-                              children: rightSpans
-                                  .map(
-                                    (sp) => Container(
-                                      width: sp.width,
-                                      height: 30,
-                                      alignment: Alignment.center,
-                                      decoration: const BoxDecoration(
-                                        color: BrmsColors.primaryContainer,
-                                        border: Border(
-                                          right: BorderSide(
-                                            color: Color(0xFF475569),
-                                            width: 0.8,
+                      thumbVisibility: true,
+                      interactive: true,
+                      scrollbarOrientation: ScrollbarOrientation.top,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: SingleChildScrollView(
+                          controller: _rightHeaderScroll,
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: rightWidth,
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: rightSpans
+                                      .map(
+                                        (sp) => Container(
+                                          width: sp.width,
+                                          height: 30,
+                                          alignment: Alignment.center,
+                                          decoration: const BoxDecoration(
+                                            color: BrmsColors.primaryContainer,
+                                            border: Border(
+                                              right: BorderSide(
+                                                color: Color(0xFF475569),
+                                                width: 0.8,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            sp.title,
+                                            style: BrmsTheme.mono(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      child: Text(
-                                        sp.title,
-                                        style: BrmsTheme.mono(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                                      )
+                                      .toList(),
+                                ),
+                                Row(
+                                  children: metricCols
+                                      .map(buildHeaderCell)
+                                      .toList(),
+                                ),
+                              ],
                             ),
-                            Row(
-                              children: metricCols
-                                  .map(buildHeaderCell)
-                                  .toList(),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -1406,11 +1435,16 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                     ),
                     // Scrollable Right Metric Rows + Grand Total
                     Expanded(
-                      child: SingleChildScrollView(
+                      child: Scrollbar(
                         controller: _rightBodyScroll,
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: rightWidth,
+                        thumbVisibility: true,
+                        interactive: true,
+                        scrollbarOrientation: ScrollbarOrientation.bottom,
+                        child: SingleChildScrollView(
+                          controller: _rightBodyScroll,
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: rightWidth,
                           child: Column(
                             children: [
                               ...List.generate(filtered.length, (i) {
@@ -1501,6 +1535,7 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                           ),
                         ),
                       ),
+                    ),
                     ),
                   ],
                 ),
@@ -1631,8 +1666,9 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
 
     return BrmsCard(
       padding: EdgeInsets.zero,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: BrmsHorizontalTableScroll(
+        ensureMinWidth: true,
+        showTopScrollbar: true,
         child: DataTable(
           showCheckboxColumn: false,
           headingRowColor: WidgetStateProperty.all(BrmsColors.primary),
@@ -1817,8 +1853,9 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
 
     return BrmsCard(
       padding: EdgeInsets.zero,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: BrmsHorizontalTableScroll(
+        ensureMinWidth: true,
+        showTopScrollbar: true,
         child: DataTable(
           headingRowColor: WidgetStateProperty.all(BrmsColors.primary),
           headingTextStyle: BrmsTheme.mono(

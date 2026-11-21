@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/brms_models.dart';
 import '../providers/brms_providers.dart';
@@ -117,6 +118,11 @@ class _ExecutiveDashboardScreenState
                     height: 36,
                     child: TextField(
                       controller: _searchController,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(
+                          BrmsInputLimits.maxSearchLength,
+                        ),
+                      ],
                       onChanged: (v) => setState(() => _searchQuery = v),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(
@@ -1705,8 +1711,8 @@ class _ExecutiveDashboardScreenState
               ],
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          BrmsHorizontalTableScroll(
+            ensureMinWidth: true,
             child: DataTable(
               headingRowColor: WidgetStateProperty.all(
                 BrmsColors.surfaceContainerLow,

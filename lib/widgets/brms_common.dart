@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/brms_theme.dart';
 
 /// Shared monochrome surface card matching Stitch's rounded-xl bordered container.
@@ -408,5 +409,156 @@ class _BrmsTopNoticeState extends State<_BrmsTopNotice>
         ),
       ),
     );
+  }
+}
+
+/// Wraps wide tables in a horizontal [SingleChildScrollView] with an
+/// always-visible, interactive [Scrollbar] so desktop & web users can scroll
+/// horizontally when columns exceed the available width.
+class BrmsHorizontalTableScroll extends StatefulWidget {
+  const BrmsHorizontalTableScroll({
+    super.key,
+    required this.child,
+    this.controller,
+    this.ensureMinWidth = false,
+    this.showTopScrollbar = false,
+  });
+
+  final Widget child;
+  final ScrollController? controller;
+  final bool ensureMinWidth;
+  final bool showTopScrollbar;
+
+  @override
+  State<BrmsHorizontalTableScroll> createState() =>
+      _BrmsHorizontalTableScrollState();
+}
+
+class _BrmsHorizontalTableScrollState extends State<BrmsHorizontalTableScroll> {
+  ScrollController? _internalController;
+
+  ScrollController get _effectiveController =>
+      widget.controller ?? (_internalController ??= ScrollController());
+
+  @override
+  void dispose() {
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  Widget _wrapWithScrollbars({
+    required ScrollController controller,
+    required Widget scrollView,
+  }) {
+    final bottomWrapped = Scrollbar(
+      controller: controller,
+      thumbVisibility: true,
+      interactive: true,
+      scrollbarOrientation: ScrollbarOrientation.bottom,
+      child: scrollView,
+    );
+
+    if (!widget.showTopScrollbar) {
+      return bottomWrapped;
+    }
+
+    return Scrollbar(
+      controller: controller,
+      thumbVisibility: true,
+      interactive: true,
+      scrollbarOrientation: ScrollbarOrientation.top,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: bottomWrapped,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _effectiveController;
+
+    if (widget.ensureMinWidth) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return _wrapWithScrollbars(
+            controller: controller,
+            scrollView: SingleChildScrollView(
+              controller: controller,
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: widget.child,
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return _wrapWithScrollbars(
+      controller: controller,
+      scrollView: SingleChildScrollView(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Clears default zero text (e.g. `0.00`) when a numeric field gains focus so
+/// it behaves like a placeholder rather than retaining `0.00` before user input.
+void clearZeroTextOnFocus(TextEditingController controller, bool hasFocus) {
+  if (!hasFocus) return;
+  final trimmed = controller.text.trim();
+  if (trimmed == '0' || trimmed == '0.0' || trimmed == '0.00') {
+    controller.clear();
+  }
+}
+
+/// Shared realistic input length and amount limits for BRMS text fields.
+abstract final class BrmsInputLimits {
+  static const int maxMoneyLength = 23;
+  static const double maxMoneyAmount = 999999999999999.99;
+  static const int maxSearchLength = 80;
+  static const int maxShortCodeLength = 30;
+  static const int maxNameLength = 100;
+  static const int maxDescriptionLength = 250;
+  static const int maxWorkstationLength = 40;
+  static const int maxAuthLength = 64;
+}
+
+/// Restricts currency/amount input to realistic numeric values:
+/// optional leading `-` (if [allowNegative]), up to 15 integer digits (trillions,
+/// commas allowed), and at most 2 decimal places.
+class BrmsMoneyInputFormatter extends TextInputFormatter {
+  BrmsMoneyInputFormatter({this.allowNegative = false});
+
+  final bool allowNegative;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+    if (allowNegative && text == '-') return newValue;
+
+    final pattern = allowNegative
+        ? RegExp(r'^-?[\d,]*\.?\d{0,2}$')
+        : RegExp(r'^[\d,]*\.?\d{0,2}$');
+    if (!pattern.hasMatch(text)) {
+      return oldValue;
+    }
+
+    final unsigned = text.startsWith('-') ? text.substring(1) : text;
+    final integerPart = unsigned.split('.').first.replaceAll(',', '');
+    if (integerPart.length > 15) {
+      return oldValue;
+    }
+
+    return newValue;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
@@ -51,13 +52,17 @@ class _ObligationRegistryScreenState
 
   final _obrNoController = TextEditingController();
   final _activityController = TextEditingController(text: 'General Operations');
+  final _activityFocusNode = FocusNode();
   final _accountCodeController = TextEditingController();
+  final _accountCodeFocusNode = FocusNode();
   final _dateController = TextEditingController();
   final _payeeController = TextEditingController();
+  final _payeeFocusNode = FocusNode();
   final _grossAmountController = TextEditingController();
-  final _disbursementController = TextEditingController(text: '0.00');
-  final _dueAndDemandableController = TextEditingController(text: '0.00');
+  final _disbursementController = TextEditingController();
+  final _dueAndDemandableController = TextEditingController();
   final _particularController = TextEditingController();
+  final _particularFocusNode = FocusNode();
   final _descriptionController = TextEditingController();
 
   PickedPdfAttachment? _pickedAttachment;
@@ -77,13 +82,17 @@ class _ObligationRegistryScreenState
     _searchController.dispose();
     _obrNoController.dispose();
     _activityController.dispose();
+    _activityFocusNode.dispose();
     _accountCodeController.dispose();
+    _accountCodeFocusNode.dispose();
     _dateController.dispose();
     _payeeController.dispose();
+    _payeeFocusNode.dispose();
     _grossAmountController.dispose();
     _disbursementController.dispose();
     _dueAndDemandableController.dispose();
     _particularController.dispose();
+    _particularFocusNode.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -102,8 +111,8 @@ class _ObligationRegistryScreenState
       _dateController.text = BrmsFormatters.toDisplayDate(_formDate);
       _payeeController.clear();
       _grossAmountController.clear();
-      _disbursementController.text = '0.00';
-      _dueAndDemandableController.text = '0.00';
+      _disbursementController.clear();
+      _dueAndDemandableController.clear();
       _particularController.clear();
       _descriptionController.clear();
       _pickedAttachment = null;
@@ -132,15 +141,15 @@ class _ObligationRegistryScreenState
       _accountCodeController.text = obr.accountCode;
       _dateController.text = BrmsFormatters.toDisplayDate(parsedDate);
       _payeeController.text = obr.payee;
-      _grossAmountController.text = BrmsFormatters.formatNumber(
-        obr.grossAmount,
-      );
-      _disbursementController.text = BrmsFormatters.formatNumber(
-        obr.disbursementAmount,
-      );
-      _dueAndDemandableController.text = BrmsFormatters.formatNumber(
-        obr.dueAndDemandable,
-      );
+      _grossAmountController.text = obr.grossAmount == 0
+          ? ''
+          : BrmsFormatters.formatNumber(obr.grossAmount);
+      _disbursementController.text = obr.disbursementAmount == 0
+          ? ''
+          : BrmsFormatters.formatNumber(obr.disbursementAmount);
+      _dueAndDemandableController.text = obr.dueAndDemandable == 0
+          ? ''
+          : BrmsFormatters.formatNumber(obr.dueAndDemandable);
       _particularController.text = obr.particular;
       _descriptionController.text = obr.description ?? '';
       _pickedAttachment = null;
@@ -188,7 +197,10 @@ class _ObligationRegistryScreenState
   }) async {
     setState(() => _obrUniqueError = null);
 
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      showBrmsNotice(context, 'Please fill in the highlighted required fields.');
+      return;
+    }
 
     final obrNo = _obrNoController.text.trim();
     final activityProject = _activityController.text.trim().isEmpty
@@ -485,6 +497,11 @@ class _ObligationRegistryScreenState
             height: 36,
             child: TextField(
               controller: _searchController,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  BrmsInputLimits.maxSearchLength,
+                ),
+              ],
               onChanged: (v) => setState(() => _searchQuery = v),
               decoration: InputDecoration(
                 prefixIcon: const Icon(
@@ -717,8 +734,8 @@ class _ObligationRegistryScreenState
               ),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            BrmsHorizontalTableScroll(
+              ensureMinWidth: true,
               child: DataTable(
                 showCheckboxColumn: false,
                 headingRowColor: WidgetStateProperty.all(
@@ -1453,6 +1470,11 @@ class _ObligationRegistryScreenState
                   hintText: 'e.g., 2024-01-0001',
                   mono: true,
                   errorText: _obrUniqueError,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxShortCodeLength,
+                    ),
+                  ],
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'OBR No. is required'
                       : null,
@@ -1488,6 +1510,7 @@ class _ObligationRegistryScreenState
                 final activityField = _buildStringAutocomplete(
                   label: 'ACTIVITY / PROJECT',
                   controller: _activityController,
+                  focusNode: _activityFocusNode,
                   options: activities,
                   hintText: 'e.g., General Operations',
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -1514,6 +1537,7 @@ class _ObligationRegistryScreenState
                 final payeeField = _buildStringAutocomplete(
                   label: 'PAYEE',
                   controller: _payeeController,
+                  focusNode: _payeeFocusNode,
                   options: payees,
                   hintText: 'Enter or select payee',
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -1533,11 +1557,20 @@ class _ObligationRegistryScreenState
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      inputFormatters: [
+                        BrmsMoneyInputFormatter(),
+                        LengthLimitingTextInputFormatter(
+                          BrmsInputLimits.maxMoneyLength,
+                        ),
+                      ],
                       onChanged: (_) => setState(() {}),
                       validator: (v) {
                         final parsed = BrmsFormatters.parseAmount(v ?? '');
                         if (parsed == null || parsed <= 0) {
                           return 'Enter a valid positive amount';
+                        }
+                        if (parsed > BrmsInputLimits.maxMoneyAmount) {
+                          return 'Amount exceeds maximum limit';
                         }
                         if (remainingBalance != null &&
                             parsed > remainingBalance) {
@@ -1571,11 +1604,20 @@ class _ObligationRegistryScreenState
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  inputFormatters: [
+                    BrmsMoneyInputFormatter(),
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxMoneyLength,
+                    ),
+                  ],
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return null;
                     final parsed = BrmsFormatters.parseAmount(v);
                     if (parsed == null || parsed < 0) {
                       return 'Enter a valid non-negative amount';
+                    }
+                    if (parsed > BrmsInputLimits.maxMoneyAmount) {
+                      return 'Amount exceeds maximum limit';
                     }
                     return null;
                   },
@@ -1590,11 +1632,20 @@ class _ObligationRegistryScreenState
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  inputFormatters: [
+                    BrmsMoneyInputFormatter(),
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxMoneyLength,
+                    ),
+                  ],
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return null;
                     final parsed = BrmsFormatters.parseAmount(v);
                     if (parsed == null || parsed < 0) {
                       return 'Enter a valid non-negative amount';
+                    }
+                    if (parsed > BrmsInputLimits.maxMoneyAmount) {
+                      return 'Amount exceeds maximum limit';
                     }
                     return null;
                   },
@@ -1603,6 +1654,7 @@ class _ObligationRegistryScreenState
                 final particularField = _buildStringAutocomplete(
                   label: 'PARTICULAR',
                   controller: _particularController,
+                  focusNode: _particularFocusNode,
                   options: particulars,
                   hintText: 'Enter or select particular',
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -1615,6 +1667,11 @@ class _ObligationRegistryScreenState
                   controller: _descriptionController,
                   hintText: 'Additional details or remarks...',
                   maxLines: 3,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxDescriptionLength,
+                    ),
+                  ],
                 );
 
                 final attachmentWidget = _buildAttachmentPickerBox();
@@ -1756,8 +1813,9 @@ class _ObligationRegistryScreenState
           ),
         ),
         const SizedBox(height: 6),
-        Autocomplete<UacsCode>(
-          initialValue: TextEditingValue(text: _accountCodeController.text),
+        RawAutocomplete<UacsCode>(
+          textEditingController: _accountCodeController,
+          focusNode: _accountCodeFocusNode,
           displayStringForOption: (u) => u.accountCode,
           optionsBuilder: (textEditingValue) {
             final q = textEditingValue.text.trim().toLowerCase();
@@ -1770,7 +1828,6 @@ class _ObligationRegistryScreenState
           },
           onSelected: (selected) {
             setState(() {
-              _accountCodeController.text = selected.accountCode;
               if (BrmsFormatters.allotmentClasses.contains(
                 selected.allotmentClass,
               )) {
@@ -1779,16 +1836,14 @@ class _ObligationRegistryScreenState
             });
           },
           fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-            if (controller.text != _accountCodeController.text) {
-              controller.text = _accountCodeController.text;
-              controller.selection = TextSelection.collapsed(
-                offset: controller.text.length,
-              );
-            }
             return TextFormField(
               controller: controller,
               focusNode: focusNode,
-              onChanged: (v) => _accountCodeController.text = v,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  BrmsInputLimits.maxShortCodeLength,
+                ),
+              ],
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
                   return 'Account Code is required';
@@ -1852,6 +1907,7 @@ class _ObligationRegistryScreenState
   Widget _buildStringAutocomplete({
     required String label,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required List<String> options,
     required String hintText,
     String? Function(String?)? validator,
@@ -1869,28 +1925,56 @@ class _ObligationRegistryScreenState
           ),
         ),
         const SizedBox(height: 6),
-        Autocomplete<String>(
-          initialValue: TextEditingValue(text: controller.text),
+        RawAutocomplete<String>(
+          textEditingController: controller,
+          focusNode: focusNode,
           optionsBuilder: (textEditingValue) {
             final q = textEditingValue.text.trim().toLowerCase();
             if (q.isEmpty) return options;
             return options.where((o) => o.toLowerCase().contains(q));
           },
-          onSelected: (selected) => controller.text = selected,
-          fieldViewBuilder: (context, fieldCtrl, focusNode, onSubmitted) {
-            if (fieldCtrl.text != controller.text) {
-              fieldCtrl.text = controller.text;
-              fieldCtrl.selection = TextSelection.collapsed(
-                offset: fieldCtrl.text.length,
-              );
-            }
+          fieldViewBuilder: (context, fieldCtrl, fieldFocusNode, onSubmitted) {
             return TextFormField(
               controller: fieldCtrl,
-              focusNode: focusNode,
-              onChanged: (v) => controller.text = v,
+              focusNode: fieldFocusNode,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(BrmsInputLimits.maxNameLength),
+              ],
               validator: validator,
               style: const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
               decoration: _inputDecoration(hintText: hintText),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, opts) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(8),
+                color: BrmsColors.surface,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: 200,
+                    maxWidth: 420,
+                  ),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: opts.length,
+                    itemBuilder: (context, index) {
+                      final option = opts.elementAt(index);
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          option,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onTap: () => onSelected(option),
+                      );
+                    },
+                  ),
+                ),
+              ),
             );
           },
         ),
@@ -2007,6 +2091,7 @@ class _ObligationRegistryScreenState
     bool readOnly = false,
     int maxLines = 1,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     VoidCallback? onTap,
     ValueChanged<String>? onChanged,
     String? Function(String?)? validator,
@@ -2024,22 +2109,27 @@ class _ObligationRegistryScreenState
           ),
         ),
         const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          readOnly: readOnly,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          onTap: onTap,
-          onChanged: onChanged,
-          validator: validator,
-          style: mono
-              ? BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w600)
-              : const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
-          decoration: _inputDecoration(
-            prefixText: prefixText,
-            hintText: hintText,
-            errorText: errorText,
-            suffixIcon: suffixIcon,
+        Focus(
+          onFocusChange: (hasFocus) =>
+              clearZeroTextOnFocus(controller, hasFocus),
+          child: TextFormField(
+            controller: controller,
+            readOnly: readOnly,
+            maxLines: maxLines,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            onTap: onTap,
+            onChanged: onChanged,
+            validator: validator,
+            style: mono
+                ? BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w600)
+                : const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
+            decoration: _inputDecoration(
+              prefixText: prefixText,
+              hintText: hintText,
+              errorText: errorText,
+              suffixIcon: suffixIcon,
+            ),
           ),
         ),
       ],

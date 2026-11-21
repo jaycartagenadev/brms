@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
@@ -28,10 +29,12 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
 
   late final TextEditingController _dateController;
   final _activityController = TextEditingController(text: 'General Operations');
+  final _activityFocusNode = FocusNode();
   final _accountCodeController = TextEditingController();
-  final _beginningBalanceController = TextEditingController(text: '0.00');
+  final _accountCodeFocusNode = FocusNode();
+  final _beginningBalanceController = TextEditingController();
   final _amountController = TextEditingController();
-  final _modificationController = TextEditingController(text: '0.00');
+  final _modificationController = TextEditingController();
   final _tableSearchController = TextEditingController();
   String _tableSearchQuery = '';
   bool _isSaving = false;
@@ -48,7 +51,9 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   void dispose() {
     _dateController.dispose();
     _activityController.dispose();
+    _activityFocusNode.dispose();
     _accountCodeController.dispose();
+    _accountCodeFocusNode.dispose();
     _beginningBalanceController.dispose();
     _amountController.dispose();
     _modificationController.dispose();
@@ -66,9 +71,9 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
       _selectedDate = DateTime.now();
       _dateController.text = BrmsFormatters.toDisplayDate(_selectedDate);
       _activityController.text = 'General Operations';
-      _beginningBalanceController.text = '0.00';
+      _beginningBalanceController.clear();
       _amountController.clear();
-      _modificationController.text = '0.00';
+      _modificationController.clear();
       _selectedAccountCode = _defaultAccountCodeForClass(
         _selectedAllotmentClass,
         uacsList ?? const [],
@@ -123,24 +128,27 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
       _accountCodeController.text = row.accountCode ?? '';
       _selectedDate = parsedDate;
       _dateController.text = BrmsFormatters.toDisplayDate(parsedDate);
-      _beginningBalanceController.text = BrmsFormatters.formatNumber(
-        row.beginningBalance,
-      );
-      _amountController.text = BrmsFormatters.formatNumber(
-        row.authorizedAppropriations,
-      );
-      _modificationController.text = '0.00';
+      _beginningBalanceController.text = row.beginningBalance == 0
+          ? ''
+          : BrmsFormatters.formatNumber(row.beginningBalance);
+      _amountController.text = row.authorizedAppropriations == 0
+          ? ''
+          : BrmsFormatters.formatNumber(row.authorizedAppropriations);
+      _modificationController.clear();
     });
   }
 
   Future<void> _saveAllocation(List<UacsCode> uacsList) async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
     final beginningBalance =
         BrmsFormatters.parseAmount(_beginningBalanceController.text) ?? 0.0;
     final amount = BrmsFormatters.parseAmount(_amountController.text) ?? 0.0;
     final modAmount =
         BrmsFormatters.parseAmount(_modificationController.text) ?? 0.0;
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      showBrmsNotice(context, 'Please fill in the highlighted required fields.');
+      return;
+    }
 
     if (beginningBalance <= 0 && amount <= 0 && modAmount == 0) {
       showBrmsNotice(
@@ -415,6 +423,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 final activityField = _buildStringAutocomplete(
                   label: 'ACTIVITY / PROJECT',
                   controller: _activityController,
+                  focusNode: _activityFocusNode,
                   options: activities,
                   hintText: 'e.g., General Operations',
                 );
@@ -456,11 +465,20 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  inputFormatters: [
+                    BrmsMoneyInputFormatter(),
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxMoneyLength,
+                    ),
+                  ],
                   validator: (val) {
                     if (val == null || val.trim().isEmpty) return null;
                     final parsed = BrmsFormatters.parseAmount(val);
                     if (parsed == null || parsed < 0) {
                       return 'Enter a valid non-negative balance';
+                    }
+                    if (parsed > BrmsInputLimits.maxMoneyAmount) {
+                      return 'Amount exceeds maximum limit';
                     }
                     return null;
                   },
@@ -475,11 +493,38 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  inputFormatters: [
+                    BrmsMoneyInputFormatter(),
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxMoneyLength,
+                    ),
+                  ],
                   validator: (val) {
-                    if (val == null || val.trim().isEmpty) return null;
+                    final beg =
+                        BrmsFormatters.parseAmount(
+                          _beginningBalanceController.text,
+                        ) ??
+                        0.0;
+                    final mod =
+                        BrmsFormatters.parseAmount(
+                          _modificationController.text,
+                        ) ??
+                        0.0;
+                    if (val == null || val.trim().isEmpty) {
+                      if (beg <= 0 && mod == 0) {
+                        return 'Budget Amount is required';
+                      }
+                      return null;
+                    }
                     final parsed = BrmsFormatters.parseAmount(val);
                     if (parsed == null || parsed < 0) {
                       return 'Enter a valid amount';
+                    }
+                    if (parsed > BrmsInputLimits.maxMoneyAmount) {
+                      return 'Amount exceeds maximum limit';
+                    }
+                    if (parsed <= 0 && beg <= 0 && mod == 0) {
+                      return 'Budget Amount is required';
                     }
                     return null;
                   },
@@ -495,11 +540,20 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                     decimal: true,
                     signed: true,
                   ),
+                  inputFormatters: [
+                    BrmsMoneyInputFormatter(allowNegative: true),
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxMoneyLength,
+                    ),
+                  ],
                   validator: (val) {
                     if (val == null || val.trim().isEmpty) return null;
                     final parsed = BrmsFormatters.parseAmount(val);
                     if (parsed == null) {
                       return 'Enter a valid number (can be negative)';
+                    }
+                    if (parsed.abs() > BrmsInputLimits.maxMoneyAmount) {
+                      return 'Amount exceeds maximum limit';
                     }
                     return null;
                   },
@@ -616,8 +670,9 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        Autocomplete<UacsCode>(
-          initialValue: TextEditingValue(text: _accountCodeController.text),
+        RawAutocomplete<UacsCode>(
+          textEditingController: _accountCodeController,
+          focusNode: _accountCodeFocusNode,
           displayStringForOption: (u) => u.accountCode,
           optionsBuilder: (textEditingValue) {
             final q = textEditingValue.text.trim().toLowerCase();
@@ -631,21 +686,18 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           onSelected: (selected) {
             setState(() {
               _selectedAccountCode = selected.accountCode;
-              _accountCodeController.text = selected.accountCode;
             });
           },
           fieldViewBuilder: (context, fieldCtrl, focusNode, onSubmitted) {
-            if (fieldCtrl.text != _accountCodeController.text) {
-              fieldCtrl.text = _accountCodeController.text;
-              fieldCtrl.selection = TextSelection.collapsed(
-                offset: fieldCtrl.text.length,
-              );
-            }
             return TextFormField(
               controller: fieldCtrl,
               focusNode: focusNode,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  BrmsInputLimits.maxShortCodeLength,
+                ),
+              ],
               onChanged: (v) {
-                _accountCodeController.text = v;
                 _selectedAccountCode = v.trim().isEmpty ? null : v.trim();
               },
               style: BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w600),
@@ -668,6 +720,20 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
                   borderSide: const BorderSide(color: BrmsColors.primary),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.error,
+                    width: 1.4,
+                  ),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.error,
+                    width: 1.6,
+                  ),
                 ),
               ),
             );
@@ -715,6 +781,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   Widget _buildStringAutocomplete({
     required String label,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required List<String> options,
     required String hintText,
   }) {
@@ -731,25 +798,21 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        Autocomplete<String>(
-          initialValue: TextEditingValue(text: controller.text),
+        RawAutocomplete<String>(
+          textEditingController: controller,
+          focusNode: focusNode,
           optionsBuilder: (textEditingValue) {
             final q = textEditingValue.text.trim().toLowerCase();
             if (q.isEmpty) return options;
             return options.where((o) => o.toLowerCase().contains(q));
           },
-          onSelected: (selected) => controller.text = selected,
-          fieldViewBuilder: (context, fieldCtrl, focusNode, onSubmitted) {
-            if (fieldCtrl.text != controller.text) {
-              fieldCtrl.text = controller.text;
-              fieldCtrl.selection = TextSelection.collapsed(
-                offset: fieldCtrl.text.length,
-              );
-            }
+          fieldViewBuilder: (context, fieldCtrl, fieldFocusNode, onSubmitted) {
             return TextFormField(
               controller: fieldCtrl,
-              focusNode: focusNode,
-              onChanged: (v) => controller.text = v,
+              focusNode: fieldFocusNode,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(BrmsInputLimits.maxNameLength),
+              ],
               style: const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
               decoration: InputDecoration(
                 hintText: hintText,
@@ -768,6 +831,52 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
                   borderSide: const BorderSide(color: BrmsColors.primary),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.error,
+                    width: 1.4,
+                  ),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(
+                    color: BrmsColors.error,
+                    width: 1.6,
+                  ),
+                ),
+              ),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, opts) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(8),
+                color: BrmsColors.surface,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: 200,
+                    maxWidth: 380,
+                  ),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: opts.length,
+                    itemBuilder: (context, index) {
+                      final option = opts.elementAt(index);
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          option,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onTap: () => onSelected(option),
+                      );
+                    },
+                  ),
                 ),
               ),
             );
@@ -813,6 +922,11 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 height: 34,
                 child: TextField(
                   controller: _tableSearchController,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxSearchLength,
+                    ),
+                  ],
                   onChanged: (v) => setState(
                     () => _tableSearchQuery = v.trim().toLowerCase(),
                   ),
@@ -902,16 +1016,10 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                 );
               }
 
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: constraints.maxWidth,
-                      ),
-                      child: DataTable(
-                        columnSpacing: 20,
+              return BrmsHorizontalTableScroll(
+                ensureMinWidth: true,
+                child: DataTable(
+                  columnSpacing: 20,
                         horizontalMargin: 12,
                         headingTextStyle: const TextStyle(
                           fontSize: 11,
@@ -1103,9 +1211,6 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                           );
                         }).toList(),
                       ),
-                    ),
-                  );
-                },
               );
             },
           ),
@@ -1136,8 +1241,8 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           ),
           const SizedBox(height: 12),
           const Divider(height: 1, color: BrmsColors.outlineVariant),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          BrmsHorizontalTableScroll(
+            ensureMinWidth: true,
             child: DataTable(
               columnSpacing: 20,
               horizontalMargin: 12,
@@ -1330,6 +1435,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     String? hintText,
     bool mono = false,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -1345,37 +1451,42 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          validator: validator,
-          style: mono
-              ? BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w700)
-              : const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
-          decoration: InputDecoration(
-            prefixText: prefixText,
-            hintText: hintText,
-            filled: true,
-            fillColor: BrmsColors.surfaceContainerLow,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 11,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: BrmsColors.outlineVariant),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: BrmsColors.primary),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: BrmsColors.error),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: BrmsColors.error),
+        Focus(
+          onFocusChange: (hasFocus) =>
+              clearZeroTextOnFocus(controller, hasFocus),
+          child: TextFormField(
+            controller: controller,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            validator: validator,
+            style: mono
+                ? BrmsTheme.mono(fontSize: 13, fontWeight: FontWeight.w700)
+                : const TextStyle(fontSize: 13, color: BrmsColors.onSurface),
+            decoration: InputDecoration(
+              prefixText: prefixText,
+              hintText: hintText,
+              filled: true,
+              fillColor: BrmsColors.surfaceContainerLow,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 11,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: BrmsColors.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: BrmsColors.primary),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: BrmsColors.error),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: BrmsColors.error),
+              ),
             ),
           ),
         ),

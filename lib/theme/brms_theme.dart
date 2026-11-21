@@ -93,6 +93,21 @@ class BrmsTheme {
         ),
       ),
       dividerColor: BrmsColors.outlineVariant,
+      inputDecorationTheme: InputDecorationTheme(
+        errorStyle: const TextStyle(
+          color: BrmsColors.error,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: BrmsColors.error, width: 1.4),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: BrmsColors.error, width: 1.6),
+        ),
+      ),
     );
   }
 

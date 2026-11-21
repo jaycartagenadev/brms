@@ -594,6 +594,11 @@ class _AccountManagementScreenState
                   height: 36,
                   child: TextField(
                     controller: _searchController,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(
+                        BrmsInputLimits.maxSearchLength,
+                      ),
+                    ],
                     onChanged: (v) {
                       setState(() {
                         _searchQuery = v;
@@ -766,8 +771,8 @@ class _AccountManagementScreenState
               ),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            BrmsHorizontalTableScroll(
+              ensureMinWidth: true,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(
                   BrmsColors.surfaceContainerHigh.withValues(alpha: 0.7),
@@ -1136,6 +1141,19 @@ class _DialogDropdownField extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(color: BrmsColors.outlineVariant),
             ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: BrmsColors.error, width: 1.4),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: BrmsColors.error, width: 1.6),
+            ),
+            errorStyle: const TextStyle(
+              color: BrmsColors.error,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           items: items
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -1206,6 +1224,19 @@ class _DrawerInput extends StatelessWidget {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(color: BrmsColors.outlineVariant),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: BrmsColors.error, width: 1.4),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: BrmsColors.error, width: 1.6),
+            ),
+            errorStyle: const TextStyle(
+              color: BrmsColors.error,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
@@ -1291,6 +1322,11 @@ class _AuditLogsDialogState extends ConsumerState<_AuditLogsDialog> {
                 height: 36,
                 child: TextField(
                   controller: _searchCtrl,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxSearchLength,
+                    ),
+                  ],
                   onChanged: (v) => setState(() => _filterQuery = v.trim()),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(
@@ -1504,6 +1540,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                   label: 'FULL LEGAL NAME',
                   hint: 'e.g., Prof. Juan Dela Cruz',
                   controller: _fullNameCtrl,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxNameLength,
+                    ),
+                  ],
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Full name is required'
                       : null,
@@ -1517,6 +1558,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                         label: 'FACULTY / EMPLOYEE ID',
                         hint: 'ID-2026-0101',
                         controller: _employeeIdCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxShortCodeLength,
+                          ),
+                        ],
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? 'Employee ID is required'
                             : null,
@@ -1528,6 +1574,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                         label: 'SYSTEM USERNAME',
                         hint: '@jdelacruz',
                         controller: _usernameCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxShortCodeLength,
+                          ),
+                        ],
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Username is required';
@@ -1555,6 +1606,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                   label: 'CAMPUS DEPARTMENT / OFFICE',
                   hint: 'Accounting & Disbursement Unit',
                   controller: _officeCtrl,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxNameLength,
+                    ),
+                  ],
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Department / office is required'
                       : null,
@@ -1568,6 +1624,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                         label: 'DESIGNATED SYSTEM ROLE',
                         hint: 'Accounting Clerk',
                         controller: _roleCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxNameLength,
+                          ),
+                        ],
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? 'Role title is required'
                             : null,
@@ -1579,6 +1640,11 @@ class _AddUserDialogState extends ConsumerState<_AddUserDialog> {
                         label: 'BOUND WORKSTATION',
                         hint: 'Terminal-APA-05',
                         controller: _workstationCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxWorkstationLength,
+                          ),
+                        ],
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? 'Workstation is required'
                             : null,
@@ -1960,6 +2026,11 @@ class _EditPermissionsDialogState
                         label: 'DESIGNATED ROLE',
                         hint: 'Role title',
                         controller: _roleCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxNameLength,
+                          ),
+                        ],
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
@@ -1970,6 +2041,11 @@ class _EditPermissionsDialogState
                         label: 'BOUND WORKSTATION',
                         hint: 'Terminal-APA-01',
                         controller: _workstationCtrl,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            BrmsInputLimits.maxWorkstationLength,
+                          ),
+                        ],
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
@@ -1981,6 +2057,11 @@ class _EditPermissionsDialogState
                   label: 'CAMPUS DEPARTMENT / OFFICE',
                   hint: 'Department or unit',
                   controller: _officeCtrl,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxNameLength,
+                    ),
+                  ],
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),

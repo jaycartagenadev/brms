@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/brms_theme.dart';
 import '../widgets/brms_common.dart';
 
@@ -13,10 +14,19 @@ class AuthGateScreen extends StatefulWidget {
 }
 
 class _AuthGateScreenState extends State<AuthGateScreen> {
+  final _credentialsFormKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController(text: 'johnyrey');
   final _passwordController = TextEditingController(text: 'admin123');
   bool _obscurePassword = true;
   bool _rememberCredentials = true;
+
+  void _submitCredentials() {
+    if (!(_credentialsFormKey.currentState?.validate() ?? false)) {
+      showBrmsNotice(context, 'Please fill in the highlighted required fields.');
+      return;
+    }
+    widget.onAuthenticated();
+  }
 
   @override
   void dispose() {
@@ -183,6 +193,11 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                 const SizedBox(height: 6),
                 TextField(
                   controller: serialController,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxWorkstationLength,
+                    ),
+                  ],
                   decoration: InputDecoration(
                     hintText: 'e.g. APARRI-AUD-2024-X',
                     isDense: true,
@@ -451,119 +466,161 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   }
 
   Widget _buildCredentialsForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Fiscal Officer ID / Username',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: BrmsColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _usernameController,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(
-              Icons.account_circle_outlined,
-              size: 18,
-              color: BrmsColors.secondary,
-            ),
-            hintText: 'Enter authorized username',
-            filled: true,
-            fillColor: BrmsColors.surface,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: BrmsColors.outlineVariant),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: BrmsColors.primary,
-                width: 1.4,
-              ),
+    return Form(
+      key: _credentialsFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Fiscal Officer ID / Username',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: BrmsColors.onSurfaceVariant,
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Flexible(
-              child: Text(
-                'Master Ledger Password',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: BrmsColors.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: _openRecoveryModal,
-              child: const Text(
-                'Forgot Password?',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: BrmsColors.secondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          onSubmitted: (_) => widget.onAuthenticated(),
-          decoration: InputDecoration(
-            prefixIcon: const Icon(
-              Icons.lock_outline,
-              size: 18,
-              color: BrmsColors.secondary,
-            ),
-            suffixIcon: IconButton(
-              onPressed: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
-              icon: Icon(
-                _obscurePassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _usernameController,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(BrmsInputLimits.maxAuthLength),
+            ],
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Username is required'
+                : null,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(
+                Icons.account_circle_outlined,
                 size: 18,
                 color: BrmsColors.secondary,
               ),
-            ),
-            hintText: 'Enter password',
-            filled: true,
-            fillColor: BrmsColors.surface,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: BrmsColors.outlineVariant),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: BrmsColors.primary,
-                width: 1.4,
+              hintText: 'Enter authorized username',
+              filled: true,
+              fillColor: BrmsColors.surface,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: BrmsColors.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.primary,
+                  width: 1.4,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.error,
+                  width: 1.4,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.error,
+                  width: 1.6,
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Flexible(
+                child: Text(
+                  'Master Ledger Password',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: BrmsColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: _openRecoveryModal,
+                child: const Text(
+                  'Forgot Password?',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: BrmsColors.secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(BrmsInputLimits.maxAuthLength),
+            ],
+            onFieldSubmitted: (_) => _submitCredentials(),
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Password is required'
+                : null,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(
+                Icons.lock_outline,
+                size: 18,
+                color: BrmsColors.secondary,
+              ),
+              suffixIcon: IconButton(
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 18,
+                  color: BrmsColors.secondary,
+                ),
+              ),
+              hintText: 'Enter password',
+              filled: true,
+              fillColor: BrmsColors.surface,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: BrmsColors.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.primary,
+                  width: 1.4,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.error,
+                  width: 1.4,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: BrmsColors.error,
+                  width: 1.6,
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -593,23 +650,24 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
         const SizedBox(height: 18),
         SizedBox(
           height: 44,
-          child: FilledButton.icon(
-            onPressed: widget.onAuthenticated,
-            style: FilledButton.styleFrom(
-              backgroundColor: BrmsColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+            child: FilledButton.icon(
+              onPressed: _submitCredentials,
+              style: FilledButton.styleFrom(
+                backgroundColor: BrmsColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.login, size: 18),
+              label: const Text(
+                'Sign In',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
-            icon: const Icon(Icons.login, size: 18),
-            label: const Text(
-              'Sign In',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
