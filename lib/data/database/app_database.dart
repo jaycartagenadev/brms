@@ -1,10 +1,6 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+import 'connection/db_connection.dart';
 
 part 'app_database.g.dart';
 
@@ -77,6 +73,8 @@ class BudgetModifications extends Table {
 class ObligationRegistries extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get obrNo => text().unique()();
+  TextColumn get fiscalYear =>
+      text().withDefault(const Constant('2024-2025'))();
   TextColumn get date => text()();
   TextColumn get fundCode => text().references(FundSources, #fundCode)();
   TextColumn get mfoProgram => text()
@@ -109,12 +107,11 @@ class ObligationRegistries extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
-  /// Opens the local SQLite database inside the user's application documents
-  /// directory (`brms_database.sqlite`).
-  factory AppDatabase.open() => AppDatabase(_openConnection());
+  /// Opens the local SQLite database on Desktop or IndexedDB WebDatabase on Web.
+  factory AppDatabase.open() => AppDatabase(openBrmsConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,6 +146,19 @@ class AppDatabase extends _$AppDatabase {
               obligationRegistries,
               obligationRegistries.dueAndDemandable,
             );
+          }
+          if (from < 3) {
+            await m.addColumn(
+              obligationRegistries,
+              obligationRegistries.fiscalYear,
+            );
+            // Backfill fiscal_year from each OBR's ISO-8601 date (YYYY-(YYYY+1)).
+            await customStatement('''
+              UPDATE obligation_registries
+              SET fiscal_year = substr(date, 1, 4) || '-' || (CAST(substr(date, 1, 4) AS INTEGER) + 1)
+              WHERE length(date) >= 4 AND CAST(substr(date, 1, 4) AS INTEGER) >= 2000
+            ''');
+            await _seedInitialData();
           }
         },
         beforeOpen: (details) async {
@@ -188,20 +198,68 @@ class AppDatabase extends _$AppDatabase {
       b.insertAll(
         uacsCodes,
         const [
+          // Personal Service (PS)
           UacsCodesCompanion(
             accountCode: Value('50101010'),
             objectTitle: Value('Basic Salary - Civilian'),
             allotmentClass: Value('Personal Service'),
           ),
           UacsCodesCompanion(
-            accountCode: Value('50216010'),
-            objectTitle: Value('Labor and wages'),
+            accountCode: Value('50102010'),
+            objectTitle: Value('Personnel Economic Relief Allowance (PERA)'),
+            allotmentClass: Value('Personal Service'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50102020'),
+            objectTitle: Value('Representation Allowance (RA)'),
+            allotmentClass: Value('Personal Service'),
+          ),
+          // Maintenance & Other Operating Expenses (MOOE)
+          UacsCodesCompanion(
+            accountCode: Value('50201010'),
+            objectTitle: Value('Traveling Expenses - Local'),
+            allotmentClass: Value('Maintenance & Other Operating Expenses'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50203010'),
+            objectTitle: Value('Office Supplies Expenses'),
+            allotmentClass: Value('Maintenance & Other Operating Expenses'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50204010'),
+            objectTitle: Value('Electricity Expenses'),
+            allotmentClass: Value('Maintenance & Other Operating Expenses'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50205020'),
+            objectTitle: Value('Telephone / Communication Services'),
             allotmentClass: Value('Maintenance & Other Operating Expenses'),
           ),
           UacsCodesCompanion(
             accountCode: Value('50211990'),
             objectTitle: Value('Other Professional Services'),
             allotmentClass: Value('Maintenance & Other Operating Expenses'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50216010'),
+            objectTitle: Value('Labor and Wages'),
+            allotmentClass: Value('Maintenance & Other Operating Expenses'),
+          ),
+          // Capital Outlay (CO)
+          UacsCodesCompanion(
+            accountCode: Value('50604040'),
+            objectTitle: Value('Buildings and Other Structures Outlay'),
+            allotmentClass: Value('Capital Outlay'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50604050'),
+            objectTitle: Value('Machinery and Equipment Outlay (ICT / Lab)'),
+            allotmentClass: Value('Capital Outlay'),
+          ),
+          UacsCodesCompanion(
+            accountCode: Value('50604070'),
+            objectTitle: Value('Furniture, Fixtures and Books Outlay'),
+            allotmentClass: Value('Capital Outlay'),
           ),
         ],
         mode: InsertMode.insertOrIgnore,
@@ -210,7 +268,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  // Reference Lookups
+  // Reference Lookups & UACS Management
   // ---------------------------------------------------------------------------
 
   Stream<List<FundSource>> watchFundSources() {
@@ -223,6 +281,39 @@ class AppDatabase extends _$AppDatabase {
     return (select(uacsCodes)
           ..orderBy([(t) => OrderingTerm.asc(t.accountCode)]))
         .watch();
+  }
+
+  Future<void> upsertUacsCode({
+    required String accountCode,
+    required String objectTitle,
+    required String allotmentClass,
+  }) {
+    return into(uacsCodes).insertOnConflictUpdate(
+      UacsCodesCompanion(
+        accountCode: Value(accountCode.trim()),
+        objectTitle: Value(objectTitle.trim()),
+        allotmentClass: Value(allotmentClass),
+      ),
+    );
+  }
+
+  Future<bool> deleteUacsCode(String accountCode) async {
+    final usedInObr = await (select(obligationRegistries)
+          ..where((t) => t.accountCode.equals(accountCode))
+          ..limit(1))
+        .getSingleOrNull();
+    if (usedInObr != null) return false;
+
+    final usedInAlloc = await (select(budgetAllocations)
+          ..where((t) => t.accountCode.equals(accountCode))
+          ..limit(1))
+        .getSingleOrNull();
+    if (usedInAlloc != null) return false;
+
+    final rows = await (delete(uacsCodes)
+          ..where((t) => t.accountCode.equals(accountCode)))
+        .go();
+    return rows > 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -386,6 +477,13 @@ class AppDatabase extends _$AppDatabase {
     return rows > 0;
   }
 
+  Future<bool> deleteObligation(int id) async {
+    final rows = await (delete(obligationRegistries)
+          ..where((t) => t.id.equals(id)))
+        .go();
+    return rows > 0;
+  }
+
   Stream<List<String>> watchDistinctPayees() {
     final query = selectOnly(obligationRegistries, distinct: true)
       ..addColumns([obligationRegistries.payee])
@@ -429,25 +527,38 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Computes remaining available adjusted budget for a [fundCode] and
-  /// [allotmentClass]:
-  /// `sum(beginning_balance + authorized_appropriations + modifications)`
-  /// (where `is_hidden = 0`) minus `sum(gross_amount)`.
+  /// Computes remaining available adjusted budget for a [fundCode],
+  /// [allotmentClass], and optional [fiscalYear]:
+  /// `sum(beginning_balance + authorized_appropriations + adjustments + active modifications)`
+  /// (excluding hidden allocations and modifications linked to hidden allocations)
+  /// minus `sum(gross_amount)`.
   Future<double> computeRemainingBalance({
     required String fundCode,
     required String allotmentClass,
+    String? fiscalYear,
     int? excludeObligationId,
   }) async {
-    final allocations = await (select(budgetAllocations)
-          ..where(
-            (t) =>
-                t.fundCode.equals(fundCode) &
-                t.allotmentClass.equals(allotmentClass) &
-                t.isHidden.equals(0),
-          ))
-        .get();
+    final filterFy =
+        fiscalYear != null && fiscalYear.isNotEmpty && fiscalYear != 'ALL';
 
-    final totalBudget = allocations.fold<double>(
+    final allFundAllocsQuery = select(budgetAllocations)
+      ..where(
+        (t) =>
+            t.fundCode.equals(fundCode) &
+            t.allotmentClass.equals(allotmentClass),
+      );
+    if (filterFy) {
+      allFundAllocsQuery.where((t) => t.fiscalYear.equals(fiscalYear));
+    }
+    final allFundAllocs = await allFundAllocsQuery.get();
+    final hiddenAllocIds = allFundAllocs
+        .where((a) => a.isHidden != 0)
+        .map((a) => a.id)
+        .toSet();
+    final activeAllocations =
+        allFundAllocs.where((a) => a.isHidden == 0).toList();
+
+    final totalBudget = activeAllocations.fold<double>(
       0.0,
       (sum, row) =>
           sum +
@@ -456,17 +567,22 @@ class AppDatabase extends _$AppDatabase {
           row.adjustmentsAllotment,
     );
 
-    final mods = await (select(budgetModifications)
-          ..where(
-            (t) =>
-                t.fundCode.equals(fundCode) &
-                t.allotmentClass.equals(allotmentClass),
-          ))
-        .get();
-    final totalMods = mods.fold<double>(
-      0.0,
-      (sum, row) => sum + row.modificationAmount,
-    );
+    final modsQuery = select(budgetModifications)
+      ..where(
+        (t) =>
+            t.fundCode.equals(fundCode) &
+            t.allotmentClass.equals(allotmentClass),
+      );
+    if (filterFy) {
+      modsQuery.where((t) => t.fiscalYear.equals(fiscalYear));
+    }
+    final mods = await modsQuery.get();
+    final totalMods = mods
+        .where(
+          (m) =>
+              m.allocationId == null || !hiddenAllocIds.contains(m.allocationId),
+        )
+        .fold<double>(0.0, (sum, row) => sum + row.modificationAmount);
 
     final obligationsQuery = select(obligationRegistries)
       ..where(
@@ -474,6 +590,9 @@ class AppDatabase extends _$AppDatabase {
             t.fundCode.equals(fundCode) &
             t.allotmentClassification.equals(allotmentClass),
       );
+    if (filterFy) {
+      obligationsQuery.where((t) => t.fiscalYear.equals(fiscalYear));
+    }
     if (excludeObligationId != null) {
       obligationsQuery.where((t) => t.id.equals(excludeObligationId).not());
     }
@@ -486,18 +605,4 @@ class AppDatabase extends _$AppDatabase {
 
     return (totalBudget + totalMods) - totalObligated;
   }
-}
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    if (kIsWeb) {
-      throw UnsupportedError(
-        'Local SQLite persistence is only supported on Desktop (Windows/macOS/Linux).',
-      );
-    }
-    final docsDir = await getApplicationDocumentsDirectory();
-    final dbFile = File(p.join(docsDir.path, 'brms_database.sqlite'));
-    await dbFile.parent.create(recursive: true);
-    return NativeDatabase(dbFile);
-  });
 }

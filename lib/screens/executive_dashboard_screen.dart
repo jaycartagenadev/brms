@@ -36,6 +36,82 @@ class _ExecutiveDashboardScreenState
     super.dispose();
   }
 
+  Future<void> _previewAndExportObrCsv(List<DashboardObrItem> rows) async {
+    const headers = [
+      'OBR TRACKING NO.',
+      'DATE RECORDED',
+      'FUND CODE',
+      'UACS & DESCRIPTION',
+      'PAYEE / CLAIMANT',
+      'PARTICULARS & PURPOSE',
+      'AMOUNT',
+      'STATUS',
+    ];
+
+    final tableRows = rows
+        .map(
+          (o) => [
+            o.obrNo,
+            o.dateRecorded,
+            o.fundCode,
+            o.uacsDescription,
+            o.payee,
+            o.particulars,
+            BrmsFormatters.formatNumber(o.grossAmount),
+            o.status,
+          ],
+        )
+        .toList();
+
+    final totalGross = rows.fold<double>(0.0, (s, o) => s + o.grossAmount);
+    final totalRow = [
+      'GRAND TOTAL',
+      '${rows.length} rows',
+      '',
+      '',
+      '',
+      '',
+      BrmsFormatters.formatNumber(totalGross),
+      '',
+    ];
+
+    await showBrmsExportPreviewDialog(
+      context,
+      title: 'Executive Dashboard — OBR Summary',
+      formatLabel: 'CSV / EXCEL',
+      headers: headers,
+      rows: tableRows,
+      totalRow: totalRow,
+      metadata: [
+        MapEntry('Fiscal Year', _selectedFy),
+        MapEntry('Fund Filter', _selectedFundFilter),
+        MapEntry('Rows', '${rows.length}'),
+      ],
+      onConfirmExport: (exportHeaders, exportRows, exportTotalRow) async {
+        final date = BrmsFormatters.toIsoDate(DateTime.now());
+        final msg = await ref
+            .read(reportExportServiceProvider)
+            .exportGenericCsv(
+              dialogTitle: 'Export Dashboard OBR CSV',
+              fileName: 'csu_aparri_dashboard_obr_$date.csv',
+              headers: exportHeaders,
+              rows: [
+                ...exportRows,
+                ?exportTotalRow,
+              ],
+              metadataRows: [
+                ['REPORT', 'EXECUTIVE DASHBOARD OBR SUMMARY'],
+                ['FISCAL YEAR', _selectedFy],
+                ['TOTAL ROWS', '${exportRows.length}'],
+              ],
+            );
+        if (msg != null && mounted) {
+          showBrmsNotice(context, msg);
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summaryAsync = ref.watch(dashboardSummaryProvider(_selectedFy));
@@ -1742,10 +1818,7 @@ class _ExecutiveDashboardScreenState
                       icon: Icons.file_download_outlined,
                       primary: false,
                       height: 32,
-                      onPressed: () => showBrmsNotice(
-                        context,
-                        'Showing ${filteredRows.length} OBR rows.',
-                      ),
+                      onPressed: () => _previewAndExportObrCsv(filteredRows),
                     ),
                   ],
                 ),

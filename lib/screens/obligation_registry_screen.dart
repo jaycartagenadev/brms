@@ -9,6 +9,8 @@ import '../services/attachment_service.dart';
 import '../theme/brms_theme.dart';
 import '../utils/brms_formatters.dart';
 import '../widgets/brms_common.dart';
+import '../widgets/brms_confirm_dialog.dart';
+import '../widgets/uacs_management_dialog.dart';
 
 enum _ObrSortOption {
   dateDesc('Sort: Date (Newest)'),
@@ -38,6 +40,7 @@ class _ObligationRegistryScreenState
 
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  String _fyFilter = 'ALL';
   String _fundFilter = 'ALL';
   String _classFilter = 'ALL';
   String _periodFilter = 'ALL';
@@ -46,6 +49,7 @@ class _ObligationRegistryScreenState
 
   // Form state
   final _formKey = GlobalKey<FormState>();
+  String _formFiscalYear = BrmsFormatters.currentFiscalYear;
   String _formFundCode = '101';
   String _formMfoProgram = BrmsFormatters.mfoPrograms.first;
   String _formAllotmentClass = BrmsFormatters.allotmentClasses.first;
@@ -102,6 +106,7 @@ class _ObligationRegistryScreenState
     setState(() {
       _isFormOpen = true;
       _editingObr = null;
+      _formFiscalYear = BrmsFormatters.currentFiscalYear;
       _formFundCode = '101';
       _formMfoProgram = BrmsFormatters.mfoPrograms.first;
       _formAllotmentClass = BrmsFormatters.allotmentClasses.first;
@@ -128,6 +133,9 @@ class _ObligationRegistryScreenState
     setState(() {
       _isFormOpen = true;
       _editingObr = obr;
+      _formFiscalYear = BrmsFormatters.fiscalYears.contains(obr.fiscalYear)
+          ? obr.fiscalYear
+          : BrmsFormatters.currentFiscalYear;
       _formFundCode = obr.fundCode;
       _formMfoProgram = BrmsFormatters.mfoPrograms.contains(obr.mfoProgram)
           ? obr.mfoProgram
@@ -183,6 +191,31 @@ class _ObligationRegistryScreenState
     }
   }
 
+  Future<void> _deleteObr(ObligationRegistry obr) async {
+    final confirmed = await showBrmsConfirmDialog(
+      context,
+      title: 'Delete Obligation Record',
+      message:
+          'Permanently delete OBR No. ${obr.obrNo} (${BrmsFormatters.formatPhp(obr.grossAmount)})? '
+          'Its allotted funds will be restored to available balances.',
+      confirmLabel: 'Delete OBR',
+    );
+    if (!confirmed || !mounted) return;
+
+    await ref.read(databaseProvider).deleteObligation(obr.id);
+    if (obr.attachmentLocalPath != null) {
+      await ref
+          .read(attachmentServiceProvider)
+          .deleteAttachment(obr.attachmentLocalPath);
+    }
+    if (mounted) {
+      setState(() {
+        if (_selectedObrId == obr.id) _selectedObrId = null;
+      });
+      showBrmsNotice(context, 'Deleted OBR No. ${obr.obrNo}.');
+    }
+  }
+
   Future<void> _pickPdfFile() async {
     final picked = await ref.read(attachmentServiceProvider).pickPdf();
     if (picked != null && mounted) {
@@ -190,6 +223,379 @@ class _ObligationRegistryScreenState
         _pickedAttachment = picked;
       });
     }
+  }
+
+  Future<void> _previewAndExportCsv() async {
+    final allRecords =
+        ref.read(obligationRegistriesProvider).value ??
+        const <ObligationRegistry>[];
+    final filtered = _applyFiltersAndSort(allRecords);
+
+    const headers = [
+      'DATE',
+      'OBR NO.',
+      'FUND CODE',
+      'PROGRAM / MFO',
+      'ACTIVITY / PROJECT',
+      'UACS CODE',
+      'CLASSIFICATION',
+      'PAYEE',
+      'PARTICULAR',
+      'GROSS AMOUNT',
+      'DISBURSEMENT',
+      'DUE & DEMANDABLE',
+    ];
+
+    final rows = filtered
+        .map(
+          (o) => [
+            BrmsFormatters.isoToDisplay(o.date),
+            o.obrNo,
+            o.fundCode,
+            o.mfoProgram,
+            o.activityProject,
+            o.accountCode,
+            o.allotmentClassification,
+            o.payee,
+            o.particular,
+            BrmsFormatters.formatNumber(o.grossAmount),
+            BrmsFormatters.formatNumber(o.disbursementAmount),
+            BrmsFormatters.formatNumber(o.dueAndDemandable),
+          ],
+        )
+        .toList();
+
+    final totalGross = filtered.fold<double>(0.0, (s, o) => s + o.grossAmount);
+    final totalDisb = filtered.fold<double>(
+      0.0,
+      (s, o) => s + o.disbursementAmount,
+    );
+    final totalDue = filtered.fold<double>(
+      0.0,
+      (s, o) => s + o.dueAndDemandable,
+    );
+
+    final totalRow = [
+      'GRAND TOTAL',
+      '${filtered.length} records',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      BrmsFormatters.formatNumber(totalGross),
+      BrmsFormatters.formatNumber(totalDisb),
+      BrmsFormatters.formatNumber(totalDue),
+    ];
+
+    await showBrmsExportPreviewDialog(
+      context,
+      title: 'Obligation Registries Ledger',
+      formatLabel: 'CSV / EXCEL',
+      headers: headers,
+      rows: rows,
+      totalRow: totalRow,
+      metadata: [
+        MapEntry('Fund Filter', _fundFilter == 'ALL' ? 'All Funds' : _fundFilter),
+        MapEntry(
+          'Class Filter',
+          _classFilter == 'ALL' ? 'All Classes' : _classFilter,
+        ),
+        MapEntry('Records', '${filtered.length}'),
+      ],
+      onConfirmExport: (exportHeaders, exportRows, exportTotalRow) async {
+        final date = BrmsFormatters.toIsoDate(DateTime.now());
+        final msg = await ref
+            .read(reportExportServiceProvider)
+            .exportGenericCsv(
+              dialogTitle: 'Export Obligation Registries CSV',
+              fileName: 'csu_aparri_obligations_$date.csv',
+              headers: exportHeaders,
+              rows: [
+                ...exportRows,
+                ?exportTotalRow,
+              ],
+              metadataRows: [
+                ['REPORT', 'OBLIGATION REGISTRIES LEDGER'],
+                ['TOTAL RECORDS', '${exportRows.length}'],
+              ],
+            );
+        if (msg != null && mounted) {
+          showBrmsNotice(context, msg);
+        }
+      },
+    );
+  }
+
+  void _openFullDetailsDialog(ObligationRegistry d) {
+    final hasAttachment =
+        d.attachmentFilename != null &&
+        d.attachmentFilename!.trim().isNotEmpty;
+    final unpaidBalance = (d.grossAmount - d.disbursementAmount).clamp(
+      0.0,
+      double.infinity,
+    );
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: BrmsColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: BrmsColors.primary,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'OBLIGATION FULL DETAILS',
+                              style: BrmsTheme.mono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: BrmsColors.outline,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'OBR No. ${d.obrNo}',
+                              style: BrmsTheme.heading(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 12,
+                        children: [
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'DATE RECORDED',
+                              value: BrmsFormatters.isoToDisplay(d.date),
+                              mono: true,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'FUND SOURCE',
+                              value: 'Fund ${d.fundCode}',
+                              mono: true,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'UACS ACCOUNT CODE',
+                              value: d.accountCode,
+                              mono: true,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'ALLOTMENT CLASS',
+                              value: d.allotmentClassification,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'PROGRAM / MFO',
+                              value: d.mfoProgram,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 190,
+                            child: _DetailField(
+                              label: 'ACTIVITY / PROJECT',
+                              value: d.activityProject,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      const Divider(
+                        height: 1,
+                        color: BrmsColors.outlineVariant,
+                      ),
+                      const SizedBox(height: 14),
+                      _DetailField(label: 'PAYEE / CREDITOR', value: d.payee),
+                      const SizedBox(height: 12),
+                      _DetailField(label: 'PARTICULAR', value: d.particular),
+                      if (d.description != null &&
+                          d.description!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _DetailField(
+                          label: 'DESCRIPTION / REMARKS',
+                          value: d.description!,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: BrmsColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: BrmsColors.outlineVariant),
+                        ),
+                        child: Wrap(
+                          spacing: 20,
+                          runSpacing: 12,
+                          children: [
+                            _DetailField(
+                              label: 'GROSS AMOUNT',
+                              value: BrmsFormatters.formatPhp(d.grossAmount),
+                              mono: true,
+                            ),
+                            _DetailField(
+                              label: 'DISBURSEMENT AMOUNT',
+                              value: BrmsFormatters.formatPhp(
+                                d.disbursementAmount,
+                              ),
+                              mono: true,
+                            ),
+                            _DetailField(
+                              label: 'DUE & DEMANDABLE',
+                              value: BrmsFormatters.formatPhp(
+                                d.dueAndDemandable,
+                              ),
+                              mono: true,
+                            ),
+                            _DetailField(
+                              label: 'UNPAID OBLIGATION',
+                              value: BrmsFormatters.formatPhp(unpaidBalance),
+                              mono: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: BrmsColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: BrmsColors.outlineVariant),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.picture_as_pdf_outlined,
+                              size: 18,
+                              color: BrmsColors.secondary,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                hasAttachment
+                                    ? d.attachmentFilename!
+                                    : 'No supporting PDF attached',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: hasAttachment
+                                      ? BrmsColors.onSurface
+                                      : BrmsColors.secondary,
+                                ),
+                              ),
+                            ),
+                            if (hasAttachment && d.attachmentLocalPath != null)
+                              BrmsButton(
+                                label: 'Open PDF',
+                                icon: Icons.open_in_new,
+                                primary: false,
+                                height: 30,
+                                onPressed: () async {
+                                  final err = await ref
+                                      .read(attachmentServiceProvider)
+                                      .openAttachment(d.attachmentLocalPath);
+                                  if (err != null && mounted) {
+                                    showBrmsNotice(context, err);
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          BrmsButton(
+                            label: 'Delete',
+                            icon: Icons.delete_outline,
+                            primary: false,
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _deleteObr(d);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          BrmsButton(
+                            label: 'Edit Record',
+                            icon: Icons.edit_outlined,
+                            primary: false,
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _openEditForm(d);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          BrmsButton(
+                            label: 'Close',
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveForm({
@@ -222,11 +628,27 @@ class _ObligationRegistryScreenState
       return;
     }
 
+    if (disbursementAmount > grossAmount) {
+      showBrmsNotice(
+        context,
+        'Disbursement Amount cannot exceed Gross Amount.',
+      );
+      return;
+    }
+
+    if (disbursementAmount + dueAndDemandable > grossAmount + 0.0001) {
+      showBrmsNotice(
+        context,
+        'Disbursement plus Due & Demandable cannot exceed Gross Amount.',
+      );
+      return;
+    }
+
     if (remainingBalance == null || grossAmount > remainingBalance) {
       final avail = BrmsFormatters.formatPhp(remainingBalance ?? 0.0);
       showBrmsNotice(
         context,
-        'Gross Amount exceeds remaining allotment ($avail) for Fund $_formFundCode.',
+        'Gross Amount exceeds remaining allotment ($avail) for Fund $_formFundCode (FY $_formFiscalYear).',
       );
       return;
     }
@@ -257,6 +679,7 @@ class _ObligationRegistryScreenState
         return;
       }
 
+      final previousAttachmentPath = _editingObr?.attachmentLocalPath;
       String? attachmentFilename = _existingAttachmentFilename;
       String? attachmentLocalPath = _existingAttachmentLocalPath;
 
@@ -272,8 +695,16 @@ class _ObligationRegistryScreenState
         attachmentLocalPath = saved.localPath;
       }
 
+      if (previousAttachmentPath != null &&
+          previousAttachmentPath != attachmentLocalPath) {
+        await ref
+            .read(attachmentServiceProvider)
+            .deleteAttachment(previousAttachmentPath);
+      }
+
       final companion = ObligationRegistriesCompanion(
         obrNo: Value(obrNo),
+        fiscalYear: Value(_formFiscalYear),
         date: Value(BrmsFormatters.toIsoDate(_formDate)),
         fundCode: Value(_formFundCode),
         mfoProgram: Value(_formMfoProgram),
@@ -290,8 +721,9 @@ class _ObligationRegistryScreenState
         attachmentLocalPath: Value(attachmentLocalPath),
       );
 
+      final isEditing = _editingObr != null;
       int savedId;
-      if (_editingObr == null) {
+      if (!isEditing) {
         savedId = await db.insertObligation(companion);
       } else {
         savedId = _editingObr!.id;
@@ -306,9 +738,7 @@ class _ObligationRegistryScreenState
         });
         showBrmsNotice(
           context,
-          _editingObr == null
-              ? 'Obligation $obrNo saved.'
-              : 'Obligation $obrNo updated.',
+          isEditing ? 'Obligation $obrNo updated.' : 'Obligation $obrNo saved.',
         );
       }
     } catch (e) {
@@ -325,6 +755,7 @@ class _ObligationRegistryScreenState
   ) {
     final q = _searchQuery.trim().toLowerCase();
     final filtered = records.where((r) {
+      if (_fyFilter != 'ALL' && r.fiscalYear != _fyFilter) return false;
       if (_fundFilter != 'ALL' && r.fundCode != _fundFilter) return false;
       if (_classFilter != 'ALL' && r.allotmentClassification != _classFilter) {
         return false;
@@ -455,13 +886,20 @@ class _ObligationRegistryScreenState
                     ),
                     const SizedBox(width: 8),
                     BrmsButton(
+                      label: 'Manage UACS',
+                      icon: Icons.list_alt_outlined,
+                      primary: false,
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const UacsManagementDialog(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    BrmsButton(
                       label: 'Export CSV',
                       icon: Icons.file_download_outlined,
                       primary: false,
-                      onPressed: () => showBrmsNotice(
-                        context,
-                        'Exporting Obligation Log to CSV.',
-                      ),
+                      onPressed: _previewAndExportCsv,
                     ),
                   ],
                 ],
@@ -476,7 +914,8 @@ class _ObligationRegistryScreenState
   Widget _buildFilterControlsBar(List<FundSource> funds) {
     final payees = ref.watch(distinctPayeesProvider).value ?? const <String>[];
     final activePayee = payees.contains(_payeeFilter) ? _payeeFilter : 'ALL';
-    final hasFilters = _fundFilter != 'ALL' ||
+    final hasFilters = _fyFilter != 'ALL' ||
+        _fundFilter != 'ALL' ||
         _classFilter != 'ALL' ||
         _periodFilter != 'ALL' ||
         activePayee != 'ALL' ||
@@ -539,6 +978,25 @@ class _ObligationRegistryScreenState
                 ),
               ),
             ),
+          ),
+          _CompactSelect<String>(
+            icon: Icons.event_note_outlined,
+            value: _fyFilter == 'ALL' ||
+                    BrmsFormatters.fiscalYears.contains(_fyFilter)
+                ? _fyFilter
+                : 'ALL',
+            items: [
+              const DropdownMenuItem(
+                value: 'ALL',
+                child: Text('FY: All Years'),
+              ),
+              ...BrmsFormatters.fiscalYears.map(
+                (fy) => DropdownMenuItem(value: fy, child: Text('FY $fy')),
+              ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _fyFilter = v);
+            },
           ),
           _CompactSelect<String>(
             icon: Icons.account_balance_outlined,
@@ -625,6 +1083,7 @@ class _ObligationRegistryScreenState
                 _searchController.clear();
                 setState(() {
                   _searchQuery = '';
+                  _fyFilter = 'ALL';
                   _fundFilter = 'ALL';
                   _classFilter = 'ALL';
                   _periodFilter = 'ALL';
@@ -866,8 +1325,10 @@ class _ObligationRegistryScreenState
                           label: 'View full details',
                           primary: isSelected,
                           height: 28,
-                          onPressed: () =>
-                              setState(() => _selectedObrId = obr.id),
+                          onPressed: () {
+                            setState(() => _selectedObrId = obr.id);
+                            _openFullDetailsDialog(obr);
+                          },
                         ),
                       ),
                     ],
@@ -1389,11 +1850,24 @@ class _ObligationRegistryScreenState
                           onPressed: () =>
                               setState(() => _selectedObrId = null),
                         ),
-                        BrmsButton(
-                          label: 'Edit',
-                          icon: Icons.edit_outlined,
-                          height: 32,
-                          onPressed: () => _openEditForm(d),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            BrmsButton(
+                              label: 'Delete',
+                              icon: Icons.delete_outline,
+                              primary: false,
+                              height: 32,
+                              onPressed: () => _deleteObr(d),
+                            ),
+                            const SizedBox(width: 8),
+                            BrmsButton(
+                              label: 'Edit',
+                              icon: Icons.edit_outlined,
+                              height: 32,
+                              onPressed: () => _openEditForm(d),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1423,6 +1897,7 @@ class _ObligationRegistryScreenState
         BalanceQueryKey(
           fundCode: _formFundCode,
           allotmentClass: _formAllotmentClass,
+          fiscalYear: _formFiscalYear,
           excludeObligationId: _editingObr?.id,
         ),
       ),
@@ -1488,6 +1963,19 @@ class _ObligationRegistryScreenState
             LayoutBuilder(
               builder: (context, constraints) {
                 final isTwoCol = constraints.maxWidth >= 680;
+
+                final fyField = _buildFormDropdown<String>(
+                  label: 'FISCAL YEAR',
+                  value: BrmsFormatters.fiscalYears.contains(_formFiscalYear)
+                      ? _formFiscalYear
+                      : BrmsFormatters.currentFiscalYear,
+                  items: BrmsFormatters.fiscalYears
+                      .map((fy) => DropdownMenuItem(value: fy, child: Text(fy)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _formFiscalYear = v);
+                  },
+                );
 
                 final fundField = _buildFormDropdown<String>(
                   label: 'FUND CODE',
@@ -1666,6 +2154,12 @@ class _ObligationRegistryScreenState
                     if (parsed > BrmsInputLimits.maxMoneyAmount) {
                       return 'Amount exceeds maximum limit';
                     }
+                    final gross = BrmsFormatters.parseAmount(
+                      _grossAmountController.text,
+                    );
+                    if (gross != null && gross > 0 && parsed > gross) {
+                      return 'Cannot exceed Gross Amount';
+                    }
                     return null;
                   },
                 );
@@ -1693,6 +2187,19 @@ class _ObligationRegistryScreenState
                     }
                     if (parsed > BrmsInputLimits.maxMoneyAmount) {
                       return 'Amount exceeds maximum limit';
+                    }
+                    final gross = BrmsFormatters.parseAmount(
+                      _grossAmountController.text,
+                    );
+                    final disb =
+                        BrmsFormatters.parseAmount(
+                          _disbursementController.text,
+                        ) ??
+                        0.0;
+                    if (gross != null &&
+                        gross > 0 &&
+                        (disb + parsed) > gross + 0.0001) {
+                      return 'Disbursement + Due & Demandable exceeds Gross';
                     }
                     return null;
                   },
@@ -1727,6 +2234,8 @@ class _ObligationRegistryScreenState
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      fyField,
+                      const SizedBox(height: 16),
                       fundField,
                       const SizedBox(height: 16),
                       obrNoField,
@@ -1764,6 +2273,8 @@ class _ObligationRegistryScreenState
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Expanded(child: fyField),
+                        const SizedBox(width: 20),
                         Expanded(child: fundField),
                         const SizedBox(width: 20),
                         Expanded(child: obrNoField),
@@ -2084,6 +2595,24 @@ class _ObligationRegistryScreenState
             ),
           ),
           const SizedBox(width: 12),
+          if (_pickedAttachment != null ||
+              (_existingAttachmentFilename != null &&
+                  _existingAttachmentFilename!.isNotEmpty)) ...[
+            BrmsButton(
+              label: 'Remove',
+              icon: Icons.close,
+              primary: false,
+              height: 32,
+              onPressed: () {
+                setState(() {
+                  _pickedAttachment = null;
+                  _existingAttachmentFilename = null;
+                  _existingAttachmentLocalPath = null;
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
           BrmsButton(
             label: 'Attach file',
             icon: Icons.attach_file,
@@ -2298,6 +2827,47 @@ class _CompactSelect<T> extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DetailField extends StatelessWidget {
+  const _DetailField({
+    required this.label,
+    required this.value,
+    this.mono = false,
+  });
+
+  final String label;
+  final String value;
+  final bool mono;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: BrmsTheme.mono(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: BrmsColors.secondary,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: mono
+              ? BrmsTheme.mono(fontSize: 12, fontWeight: FontWeight.w600)
+              : const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: BrmsColors.onSurface,
+                ),
+        ),
+      ],
     );
   }
 }

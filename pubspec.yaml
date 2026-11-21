@@ -1,5 +1,5 @@
 name: brms
-description: "A new Flutter project."
+description: "CSU-Aparri Budget Resource Monitoring System (BRMS) for Desktop and Web."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^8.2.1
   drift: ^2.35.4
-  sqlite3_flutter_libs: ^0.6.0+eol
   path_provider: ^2.1.6
   path: ^1.9.1
   flutter_riverpod: ^3.5.0
@@ -44,6 +43,8 @@ dependencies:
   open_filex: ^5.0.0
   intl: ^0.20.2
   pdf: ^3.13.1
+  go_router: ^18.1.4
+  sqlite3: ^3.5.2
 
 dev_dependencies:
   flutter_test:

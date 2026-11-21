@@ -1,59 +1,89 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import '../models/brms_models.dart';
+import '../providers/brms_providers.dart';
 import '../theme/brms_theme.dart';
-import '../screens/executive_dashboard_screen.dart';
-import '../screens/set_budget_screen.dart';
-import '../screens/obligation_registry_screen.dart';
-import '../screens/far_1a_report_screen.dart';
-import '../screens/account_management_screen.dart';
+import 'brms_common.dart';
+import 'brms_confirm_dialog.dart';
 
 /// Main desktop/web shell containing the floating header, pill navigation,
-/// and active BRMS module content.
-class BrmsShell extends StatefulWidget {
+/// database backup/restore controls (Desktop), and routed BRMS module content.
+class BrmsShell extends ConsumerWidget {
   const BrmsShell({
     super.key,
+    required this.activeModule,
+    required this.selectedReportType,
     required this.onSignOut,
-    this.initialModule = BrmsModule.dashboard,
+    required this.child,
   });
 
+  final BrmsModule activeModule;
+  final ReportType selectedReportType;
   final VoidCallback onSignOut;
-  final BrmsModule initialModule;
+  final Widget child;
 
-  @override
-  State<BrmsShell> createState() => _BrmsShellState();
-}
-
-class _BrmsShellState extends State<BrmsShell> {
-  late BrmsModule _activeModule = widget.initialModule;
-  ReportType _selectedReportType = ReportType.far2;
-
-  void _selectModule(BrmsModule module) {
-    setState(() => _activeModule = module);
+  void _navigateModule(BuildContext context, BrmsModule module) {
+    if (module == BrmsModule.reports) {
+      context.go(selectedReportType.routePath);
+    } else {
+      context.go(module.routePath);
+    }
   }
 
-  void _selectReport(ReportType reportType) {
-    setState(() {
-      _selectedReportType = reportType;
-      _activeModule = BrmsModule.reports;
-    });
+  void _navigateReport(BuildContext context, ReportType reportType) {
+    context.go(reportType.routePath);
+  }
+
+  Future<void> _handleBackup(BuildContext context, WidgetRef ref) async {
+    final msg = await ref.read(databaseBackupServiceProvider).backupDatabase();
+    if (msg != null && context.mounted) {
+      showBrmsNotice(context, msg);
+    }
+  }
+
+  Future<void> _handleRestore(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showBrmsConfirmDialog(
+      context,
+      title: 'Restore Local Database',
+      message:
+          'Restoring from a .sqlite backup will overwrite all current local '
+          'budget allocations, modifications, and obligation records. Continue?',
+      confirmLabel: 'Choose Backup File',
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final result = await ref
+        .read(databaseBackupServiceProvider)
+        .restoreDatabase(
+          closeDatabase: () => ref.read(databaseProvider).close(),
+        );
+    if (result.restored) {
+      ref.invalidate(databaseProvider);
+    }
+    if (result.message != null && context.mounted) {
+      showBrmsNotice(context, result.message!);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: BrmsColors.background,
       body: Column(
         children: [
-          _buildFloatingHeader(context),
+          _buildFloatingHeader(context, ref),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 32),
               child: Column(
                 children: [
                   const SizedBox(height: 12),
-                  _buildModuleNavBar(),
+                  _buildModuleNavBar(context),
                   const SizedBox(height: 16),
-                  _buildBody(),
+                  child,
                 ],
               ),
             ),
@@ -63,7 +93,7 @@ class _BrmsShellState extends State<BrmsShell> {
     );
   }
 
-  Widget _buildFloatingHeader(BuildContext context) {
+  Widget _buildFloatingHeader(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Center(
@@ -90,7 +120,7 @@ class _BrmsShellState extends State<BrmsShell> {
               children: [
                 // Left institutional brand
                 InkWell(
-                  onTap: () => _selectModule(BrmsModule.dashboard),
+                  onTap: () => _navigateModule(context, BrmsModule.dashboard),
                   borderRadius: BorderRadius.circular(8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -159,90 +189,153 @@ class _BrmsShellState extends State<BrmsShell> {
                   ),
                 ),
                 const Spacer(),
-                // Right controls
-                LayoutBuilder(
-                  builder: (context, _) {
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // User profile pill (navigates to Account Management)
-                        InkWell(
-                          onTap: () => _selectModule(BrmsModule.accounts),
-                          borderRadius: BorderRadius.circular(999),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: _activeModule == BrmsModule.accounts
-                                  ? BrmsColors.surfaceContainerHigh
-                                  : BrmsColors.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: _activeModule == BrmsModule.accounts
-                                    ? BrmsColors.primary
-                                    : BrmsColors.outlineVariant,
-                              ),
-                            ),
-                            child: CircleAvatar(
-                              radius: 14,
-                              backgroundColor: BrmsColors.primary,
-                              child: Center(
-                                child: Text(
-                                  'JT',
-                                  textAlign: TextAlign.center,
-                                  style: BrmsTheme.mono(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!kIsWeb) ...[
+                      PopupMenuButton<String>(
+                        tooltip: 'Database Backup & Restore',
+                        offset: const Offset(0, 40),
+                        color: BrmsColors.surface,
+                        surfaceTintColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: const BorderSide(
+                            color: BrmsColors.outlineVariant,
+                          ),
+                        ),
+                        onSelected: (action) {
+                          if (action == 'backup') {
+                            _handleBackup(context, ref);
+                          } else if (action == 'restore') {
+                            _handleRestore(context, ref);
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'backup',
+                            height: 38,
+                            child: Row(
+                              children: [
+                                Icon(Icons.backup_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Backup Database (.sqlite)',
+                                  style: TextStyle(fontSize: 12),
                                 ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'restore',
+                            height: 38,
+                            child: Row(
+                              children: [
+                                Icon(Icons.restore_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Restore Database (.sqlite)',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: BrmsColors.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: BrmsColors.outlineVariant,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.storage_outlined,
+                            size: 18,
+                            color: BrmsColors.secondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    // User profile pill (navigates to Account Management)
+                    InkWell(
+                      onTap: () => _navigateModule(context, BrmsModule.accounts),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: activeModule == BrmsModule.accounts
+                              ? BrmsColors.surfaceContainerHigh
+                              : BrmsColors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: activeModule == BrmsModule.accounts
+                                ? BrmsColors.primary
+                                : BrmsColors.outlineVariant,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: BrmsColors.primary,
+                          child: Center(
+                            child: Text(
+                              'JT',
+                              textAlign: TextAlign.center,
+                              style: BrmsTheme.mono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
-                        Container(
-                          width: 1,
-                          height: 22,
-                          margin: const EdgeInsets.symmetric(horizontal: 10),
-                          color: BrmsColors.outlineVariant,
-                        ),
-                        IconButton(
-                          tooltip: 'Lock Session',
-                          onPressed: widget.onSignOut,
-                          icon: const Icon(Icons.lock_outline, size: 18),
-                          style: IconButton.styleFrom(
-                            foregroundColor: BrmsColors.secondary,
-                            backgroundColor: BrmsColors.surfaceContainerLow,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: const BorderSide(
-                                color: BrmsColors.outlineVariant,
-                              ),
-                            ),
-                            fixedSize: const Size(34, 34),
-                            padding: EdgeInsets.zero,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 22,
+                      margin: const EdgeInsets.symmetric(horizontal: 10),
+                      color: BrmsColors.outlineVariant,
+                    ),
+                    IconButton(
+                      tooltip: 'Lock Session',
+                      onPressed: onSignOut,
+                      icon: const Icon(Icons.lock_outline, size: 18),
+                      style: IconButton.styleFrom(
+                        foregroundColor: BrmsColors.secondary,
+                        backgroundColor: BrmsColors.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(
+                            color: BrmsColors.outlineVariant,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: 'Sign Out',
-                          onPressed: widget.onSignOut,
-                          icon: const Icon(Icons.logout, size: 18),
-                          style: IconButton.styleFrom(
-                            foregroundColor: BrmsColors.secondary,
-                            backgroundColor: BrmsColors.surfaceContainerLow,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: const BorderSide(
-                                color: BrmsColors.outlineVariant,
-                              ),
-                            ),
-                            fixedSize: const Size(34, 34),
-                            padding: EdgeInsets.zero,
+                        fixedSize: const Size(34, 34),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Sign Out',
+                      onPressed: onSignOut,
+                      icon: const Icon(Icons.logout, size: 18),
+                      style: IconButton.styleFrom(
+                        foregroundColor: BrmsColors.secondary,
+                        backgroundColor: BrmsColors.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(
+                            color: BrmsColors.outlineVariant,
                           ),
                         ),
-                      ],
-                    );
-                  },
+                        fixedSize: const Size(34, 34),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -252,7 +345,7 @@ class _BrmsShellState extends State<BrmsShell> {
     );
   }
 
-  Widget _buildModuleNavBar() {
+  Widget _buildModuleNavBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -274,7 +367,7 @@ class _BrmsShellState extends State<BrmsShell> {
           spacing: 4,
           runSpacing: 4,
           children: BrmsModule.values.map((module) {
-            final isSelected = module == _activeModule;
+            final isSelected = module == activeModule;
             if (module == BrmsModule.reports) {
               return PopupMenuButton<ReportType>(
                 tooltip: 'Select Report',
@@ -285,10 +378,9 @@ class _BrmsShellState extends State<BrmsShell> {
                   borderRadius: BorderRadius.circular(10),
                   side: const BorderSide(color: BrmsColors.outlineVariant),
                 ),
-                onSelected: _selectReport,
+                onSelected: (type) => _navigateReport(context, type),
                 itemBuilder: (context) => ReportType.values.map((type) {
-                  final isCurrent =
-                      isSelected && type == _selectedReportType;
+                  final isCurrent = isSelected && type == selectedReportType;
                   return PopupMenuItem<ReportType>(
                     value: type,
                     height: 38,
@@ -364,7 +456,7 @@ class _BrmsShellState extends State<BrmsShell> {
             }
 
             return InkWell(
-              onTap: () => _selectModule(module),
+              onTap: () => _navigateModule(context, module),
               borderRadius: BorderRadius.circular(999),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -417,21 +509,6 @@ class _BrmsShellState extends State<BrmsShell> {
         return Icons.assessment_outlined;
       case BrmsModule.accounts:
         return Icons.manage_accounts_outlined;
-    }
-  }
-
-  Widget _buildBody() {
-    switch (_activeModule) {
-      case BrmsModule.dashboard:
-        return ExecutiveDashboardScreen(onNavigate: _selectModule);
-      case BrmsModule.setBudget:
-        return const SetBudgetScreen();
-      case BrmsModule.obligations:
-        return const ObligationRegistryScreen();
-      case BrmsModule.reports:
-        return Far1AReportScreen(reportType: _selectedReportType);
-      case BrmsModule.accounts:
-        return const AccountManagementScreen();
     }
   }
 }

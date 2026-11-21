@@ -426,6 +426,11 @@ final centralReportProvider =
 
     bool withinQuarter(int q) => params.maxQuarter == 0 || q <= params.maxQuarter;
 
+    final hiddenAllocIds = allocations
+        .where((a) => a.isHidden != 0)
+        .map((a) => a.id)
+        .toSet();
+
     // 1. Fold active budget_allocations
     for (final a in allocations) {
       if (a.isHidden != 0) continue;
@@ -453,8 +458,11 @@ final centralReportProvider =
       }
     }
 
-    // 2. Fold budget_modifications
+    // 2. Fold budget_modifications (excluding modifications tied to hidden allocations)
     for (final m in modifications) {
+      if (m.allocationId != null && hiddenAllocIds.contains(m.allocationId)) {
+        continue;
+      }
       if (params.fiscalYear != 'ALL' && m.fiscalYear != params.fiscalYear) {
         continue;
       }
@@ -477,6 +485,9 @@ final centralReportProvider =
     // 3. Fold obligation_registries
     int matchingObrCount = 0;
     for (final o in obligations) {
+      if (params.fiscalYear != 'ALL' && o.fiscalYear != params.fiscalYear) {
+        continue;
+      }
       if (params.fundCode != 'ALL' && o.fundCode != params.fundCode) {
         continue;
       }
@@ -712,3 +723,33 @@ CentralReportRow sumCentralRows(List<CentralReportRow> rows) {
     dueAndDemandable: dueAndDemandable,
   );
 }
+
+/// Persists the expanded/collapsed MFO state for FAR 2 across page
+/// navigations, defaulting to all collapsed on initial app launch.
+class Far2ExpandedMfosNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const <String>{};
+
+  void toggle(String mfoProgram) {
+    final next = Set<String>.from(state);
+    if (next.contains(mfoProgram)) {
+      next.remove(mfoProgram);
+    } else {
+      next.add(mfoProgram);
+    }
+    state = next;
+  }
+
+  void expandAll() {
+    state = Set<String>.from(BrmsFormatters.mfoPrograms);
+  }
+
+  void collapseAll() {
+    state = const <String>{};
+  }
+}
+
+final far2ExpandedMfosProvider =
+    NotifierProvider<Far2ExpandedMfosNotifier, Set<String>>(
+  Far2ExpandedMfosNotifier.new,
+);

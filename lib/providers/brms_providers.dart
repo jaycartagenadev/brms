@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
 import '../services/attachment_service.dart';
+import '../services/database_backup_service.dart';
 import '../services/report_export_service.dart';
 
 export 'account_management_provider.dart';
@@ -21,6 +22,11 @@ final attachmentServiceProvider = Provider<AttachmentService>((ref) {
 /// Official report export service (landscape PDF & CSV).
 final reportExportServiceProvider = Provider<ReportExportService>((ref) {
   return const ReportExportService();
+});
+
+/// Local SQLite backup & restore service (Desktop).
+final databaseBackupServiceProvider = Provider<DatabaseBackupService>((ref) {
+  return const DatabaseBackupService();
 });
 
 /// Reactive stream of all statutory and campus fund sources.
@@ -76,11 +82,13 @@ class BalanceQueryKey {
   const BalanceQueryKey({
     required this.fundCode,
     required this.allotmentClass,
+    this.fiscalYear,
     this.excludeObligationId,
   });
 
   final String fundCode;
   final String allotmentClass;
+  final String? fiscalYear;
   final int? excludeObligationId;
 
   @override
@@ -90,17 +98,17 @@ class BalanceQueryKey {
           runtimeType == other.runtimeType &&
           fundCode == other.fundCode &&
           allotmentClass == other.allotmentClass &&
+          fiscalYear == other.fiscalYear &&
           excludeObligationId == other.excludeObligationId;
 
   @override
   int get hashCode =>
-      Object.hash(fundCode, allotmentClass, excludeObligationId);
+      Object.hash(fundCode, allotmentClass, fiscalYear, excludeObligationId);
 }
 
-/// Real-time remaining available adjusted budget for a given `fundCode` and
-/// `allotmentClass`:
-/// `sum(beginning_balance + authorized_appropriations + modifications) - sum(gross_amount)`.
-/// Recomputes automatically whenever allocations, modifications, or obligations change.
+/// Real-time remaining available adjusted budget for a given `fundCode`,
+/// `allotmentClass`, and optional `fiscalYear`.
+/// Excludes hidden allocations and modifications linked to hidden allocations.
 final remainingBalanceProvider =
     Provider.family<AsyncValue<double>, BalanceQueryKey>((ref, key) {
   final allocationsAsync = ref.watch(budgetAllocationsProvider);
@@ -136,12 +144,22 @@ final remainingBalanceProvider =
       modificationsAsync.value ?? const <BudgetModification>[];
   final obligations = obligationsAsync.value ?? const <ObligationRegistry>[];
 
+  final filterFy = key.fiscalYear != null &&
+      key.fiscalYear!.isNotEmpty &&
+      key.fiscalYear != 'ALL';
+
+  final hiddenAllocIds = allocations
+      .where((a) => a.isHidden != 0)
+      .map((a) => a.id)
+      .toSet();
+
   final totalBudget = allocations
       .where(
         (a) =>
             a.isHidden == 0 &&
             a.fundCode == key.fundCode &&
-            a.allotmentClass == key.allotmentClass,
+            a.allotmentClass == key.allotmentClass &&
+            (!filterFy || a.fiscalYear == key.fiscalYear),
       )
       .fold<double>(
         0.0,
@@ -155,7 +173,11 @@ final remainingBalanceProvider =
   final totalMods = modifications
       .where(
         (m) =>
-            m.fundCode == key.fundCode && m.allotmentClass == key.allotmentClass,
+            m.fundCode == key.fundCode &&
+            m.allotmentClass == key.allotmentClass &&
+            (!filterFy || m.fiscalYear == key.fiscalYear) &&
+            (m.allocationId == null ||
+                !hiddenAllocIds.contains(m.allocationId)),
       )
       .fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
 
@@ -164,6 +186,7 @@ final remainingBalanceProvider =
         (o) =>
             o.fundCode == key.fundCode &&
             o.allotmentClassification == key.allotmentClass &&
+            (!filterFy || o.fiscalYear == key.fiscalYear) &&
             o.id != key.excludeObligationId,
       )
       .fold<double>(0.0, (sum, o) => sum + o.grossAmount);
@@ -171,7 +194,7 @@ final remainingBalanceProvider =
   return AsyncValue.data((totalBudget + totalMods) - totalObligated);
 });
 
-/// Aggregated totals per fund source for Dashboard and FAR 1-A consumers.
+/// Aggregated totals per fund source for Dashboard and Report consumers.
 class FundBalanceSummary {
   const FundBalanceSummary({
     required this.fundCode,
@@ -233,6 +256,11 @@ final fundBalanceSummaryProvider =
       modificationsAsync.value ?? const <BudgetModification>[];
   final obligations = obligationsAsync.value ?? const <ObligationRegistry>[];
 
+  final hiddenAllocIds = allocations
+      .where((a) => a.isHidden != 0)
+      .map((a) => a.id)
+      .toSet();
+
   final result = <String, FundBalanceSummary>{};
   for (final fund in funds) {
     final allotment = allocations
@@ -246,7 +274,12 @@ final fundBalanceSummaryProvider =
               a.adjustmentsAllotment,
         );
     final mods = modifications
-        .where((m) => m.fundCode == fund.fundCode)
+        .where(
+          (m) =>
+              m.fundCode == fund.fundCode &&
+              (m.allocationId == null ||
+                  !hiddenAllocIds.contains(m.allocationId)),
+        )
         .fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
     final obligated = obligations
         .where((o) => o.fundCode == fund.fundCode)

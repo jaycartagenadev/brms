@@ -7,6 +7,8 @@ import '../providers/brms_providers.dart';
 import '../theme/brms_theme.dart';
 import '../utils/brms_formatters.dart';
 import '../widgets/brms_common.dart';
+import '../widgets/brms_confirm_dialog.dart';
+import '../widgets/uacs_management_dialog.dart';
 
 /// Screen 3: BRMS CSU Aparri - Set Budget Allocation (Monochrome).
 class SetBudgetScreen extends ConsumerStatefulWidget {
@@ -20,7 +22,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   final _formKey = GlobalKey<FormState>();
 
   int? _editingAllocationId;
-  String _selectedFy = '2024-2025';
+  String _selectedFy = BrmsFormatters.currentFiscalYear;
   String _selectedFundCode = '101';
   String _selectedMfoProgram = BrmsFormatters.mfoPrograms.first;
   String _selectedAllotmentClass = BrmsFormatters.allotmentClasses.first;
@@ -77,7 +79,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   void _resetForm({List<UacsCode>? uacsList}) {
     setState(() {
       _editingAllocationId = null;
-      _selectedFy = '2024-2025';
+      _selectedFy = BrmsFormatters.currentFiscalYear;
       _selectedFundCode = '101';
       _selectedMfoProgram = BrmsFormatters.mfoPrograms.first;
       _selectedAllotmentClass = BrmsFormatters.allotmentClasses.first;
@@ -368,6 +370,17 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                   const SizedBox(width: 12),
                   const BrmsBadge(label: 'EDIT MODE', filled: true),
                 ],
+                const SizedBox(width: 10),
+                BrmsButton(
+                  label: 'Manage UACS',
+                  icon: Icons.list_alt_outlined,
+                  primary: false,
+                  height: 32,
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const UacsManagementDialog(),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 22),
@@ -1702,6 +1715,14 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                     DataCell(
                       OutlinedButton(
                         onPressed: () async {
+                          final confirmed = await showBrmsConfirmDialog(
+                            context,
+                            title: 'Remove Budget Modification',
+                            message:
+                                'Remove the ${BrmsFormatters.formatPhp(m.modificationAmount)} modification for Fund ${m.fundCode} (${m.fiscalYear})? This will immediately recalculate adjusted balances.',
+                            confirmLabel: 'Remove',
+                          );
+                          if (!confirmed || !mounted) return;
                           await ref
                               .read(databaseProvider)
                               .deleteBudgetModification(m.id);

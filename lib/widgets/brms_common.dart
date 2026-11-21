@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/brms_theme.dart';
+import '../utils/brms_formatters.dart';
 
 /// Shared monochrome surface card matching Stitch's rounded-xl bordered container.
 class BrmsCard extends StatelessWidget {
@@ -616,5 +617,721 @@ class BrmsMoneyInputFormatter extends TextInputFormatter {
     }
 
     return newValue;
+  }
+}
+
+/// Shows an interactive preview modal of the data to be exported, with live
+/// keyword, column, value, column-visibility, and row-selection filters,
+/// requiring an explicit `Export` click before writing the file.
+Future<void> showBrmsExportPreviewDialog(
+  BuildContext context, {
+  required String title,
+  required String formatLabel,
+  required List<String> headers,
+  required List<List<String>> rows,
+  List<String>? totalRow,
+  List<MapEntry<String, String>> metadata = const [],
+  required Future<void> Function(
+    List<String> exportHeaders,
+    List<List<String>> exportRows,
+    List<String>? exportTotalRow,
+  )
+  onConfirmExport,
+}) async {
+  await showDialog<void>(
+    context: context,
+    builder: (_) => _BrmsExportPreviewDialog(
+      title: title,
+      formatLabel: formatLabel,
+      headers: headers,
+      rows: rows,
+      totalRow: totalRow,
+      metadata: metadata,
+      onConfirmExport: onConfirmExport,
+    ),
+  );
+}
+
+class _BrmsExportPreviewDialog extends StatefulWidget {
+  const _BrmsExportPreviewDialog({
+    required this.title,
+    required this.formatLabel,
+    required this.headers,
+    required this.rows,
+    required this.totalRow,
+    required this.metadata,
+    required this.onConfirmExport,
+  });
+
+  final String title;
+  final String formatLabel;
+  final List<String> headers;
+  final List<List<String>> rows;
+  final List<String>? totalRow;
+  final List<MapEntry<String, String>> metadata;
+  final Future<void> Function(
+    List<String> exportHeaders,
+    List<List<String>> exportRows,
+    List<String>? exportTotalRow,
+  )
+  onConfirmExport;
+
+  @override
+  State<_BrmsExportPreviewDialog> createState() =>
+      _BrmsExportPreviewDialogState();
+}
+
+class _BrmsExportPreviewDialogState extends State<_BrmsExportPreviewDialog> {
+  static const int _maxPreviewRows = 60;
+  static const int _allColumnsIndex = -1;
+  static const String _allValuesToken = '__ALL_VALUES__';
+
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  int _selectedFilterCol = _allColumnsIndex;
+  String _selectedColValue = _allValuesToken;
+  bool _showColumnPicker = false;
+  bool _isExporting = false;
+
+  late final List<int> _selectedColIndices;
+  late final Set<int> _excludedRowIndices;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedColIndices = List.generate(widget.headers.length, (i) => i);
+    _excludedRowIndices = <int>{};
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<String> _distinctValuesForColumn(int colIdx) {
+    if (colIdx < 0 || colIdx >= widget.headers.length) return const [];
+    final values = widget.rows
+        .map((r) => colIdx < r.length ? r[colIdx].trim() : '')
+        .where((v) => v.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
+  }
+
+  List<int> _matchingRowIndices() {
+    final q = _searchQuery.trim().toLowerCase();
+    final indices = <int>[];
+    for (int i = 0; i < widget.rows.length; i++) {
+      final row = widget.rows[i];
+
+      if (_selectedFilterCol != _allColumnsIndex &&
+          _selectedColValue != _allValuesToken) {
+        final cellVal = _selectedFilterCol < row.length
+            ? row[_selectedFilterCol].trim()
+            : '';
+        if (cellVal != _selectedColValue) continue;
+      }
+
+      if (q.isNotEmpty) {
+        if (_selectedFilterCol != _allColumnsIndex) {
+          final cellVal = _selectedFilterCol < row.length
+              ? row[_selectedFilterCol].toLowerCase()
+              : '';
+          if (!cellVal.contains(q)) continue;
+        } else {
+          final matchesAny = row.any((cell) => cell.toLowerCase().contains(q));
+          if (!matchesAny) continue;
+        }
+      }
+
+      indices.add(i);
+    }
+    return indices;
+  }
+
+  List<String>? _computeExportTotalRow(
+    List<int> colIndices,
+    List<List<String>> selectedRows,
+  ) {
+    final origTotal = widget.totalRow;
+    if (origTotal == null) return null;
+
+    return colIndices.map((colIdx) {
+      final origCell = colIdx < origTotal.length ? origTotal[colIdx] : '';
+      final parsedOrig = BrmsFormatters.parseAmount(origCell);
+      final looksNumeric =
+          parsedOrig != null &&
+          RegExp(r'^-?[\d,]+(\.\d+)?$').hasMatch(origCell.trim());
+      if (!looksNumeric) {
+        return origCell;
+      }
+      double sum = 0.0;
+      for (final r in selectedRows) {
+        if (colIdx < r.length) {
+          sum += BrmsFormatters.parseAmount(r[colIdx]) ?? 0.0;
+        }
+      }
+      return BrmsFormatters.formatNumber(sum);
+    }).toList();
+  }
+
+  void _resetFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _searchQuery = '';
+      _selectedFilterCol = _allColumnsIndex;
+      _selectedColValue = _allValuesToken;
+      _excludedRowIndices.clear();
+      _selectedColIndices
+        ..clear()
+        ..addAll(List.generate(widget.headers.length, (i) => i));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchingIndices = _matchingRowIndices();
+    final includedMatchingIndices = matchingIndices
+        .where((i) => !_excludedRowIndices.contains(i))
+        .toList();
+
+    final activeColIndices = _selectedColIndices.toList()..sort();
+    final exportHeaders = activeColIndices
+        .map((i) => widget.headers[i])
+        .toList();
+    final exportRows = includedMatchingIndices.map((rowIdx) {
+      final r = widget.rows[rowIdx];
+      return activeColIndices.map((c) => c < r.length ? r[c] : '').toList();
+    }).toList();
+
+    final rawSelectedRows = includedMatchingIndices
+        .map((rowIdx) => widget.rows[rowIdx])
+        .toList();
+    final exportTotalRow = _computeExportTotalRow(
+      activeColIndices,
+      rawSelectedRows,
+    );
+
+    final previewIndices = matchingIndices.length > _maxPreviewRows
+        ? matchingIndices.take(_maxPreviewRows).toList()
+        : matchingIndices;
+
+    final allMatchingSelected =
+        matchingIndices.isNotEmpty &&
+        matchingIndices.every((i) => !_excludedRowIndices.contains(i));
+    final hasActiveFilter =
+        _searchQuery.isNotEmpty ||
+        _selectedFilterCol != _allColumnsIndex ||
+        _excludedRowIndices.isNotEmpty ||
+        activeColIndices.length != widget.headers.length;
+
+    final distinctColValues = _selectedFilterCol == _allColumnsIndex
+        ? const <String>[]
+        : _distinctValuesForColumn(_selectedFilterCol);
+
+    return Dialog(
+      backgroundColor: BrmsColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1080, maxHeight: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            BrmsBadge(label: widget.formatLabel, filled: true),
+                            const SizedBox(width: 8),
+                            Text(
+                              'EXPORT PREVIEW & FILTER',
+                              style: BrmsTheme.mono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: BrmsColors.secondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.title,
+                          overflow: TextOverflow.ellipsis,
+                          style: BrmsTheme.heading(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _isExporting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+                ],
+              ),
+              if (widget.metadata.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: widget.metadata
+                      .map(
+                        (m) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: BrmsColors.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: BrmsColors.outlineVariant,
+                            ),
+                          ),
+                          child: Text(
+                            '${m.key}: ${m.value}',
+                            style: BrmsTheme.mono(
+                              fontSize: 11,
+                              color: BrmsColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: BrmsColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: BrmsColors.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 240,
+                          height: 34,
+                          child: TextField(
+                            controller: _searchCtrl,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(
+                                BrmsInputLimits.maxSearchLength,
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => _searchQuery = v),
+                            style: const TextStyle(fontSize: 12),
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                size: 16,
+                                color: BrmsColors.secondary,
+                              ),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.close, size: 14),
+                                      onPressed: () {
+                                        _searchCtrl.clear();
+                                        setState(() => _searchQuery = '');
+                                      },
+                                    )
+                                  : null,
+                              hintText: 'Filter rows by keyword...',
+                              hintStyle: const TextStyle(
+                                fontSize: 12,
+                                color: BrmsColors.secondary,
+                              ),
+                              filled: true,
+                              fillColor: BrmsColors.surface,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(
+                                  color: BrmsColors.outlineVariant,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(
+                                  color: BrmsColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          height: 34,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: BrmsColors.surface,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: BrmsColors.outlineVariant,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              value: _selectedFilterCol,
+                              isDense: true,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: BrmsColors.onSurface,
+                              ),
+                              items: [
+                                const DropdownMenuItem(
+                                  value: _allColumnsIndex,
+                                  child: Text('Filter: All Columns'),
+                                ),
+                                for (int i = 0; i < widget.headers.length; i++)
+                                  DropdownMenuItem(
+                                    value: i,
+                                    child: Text(
+                                      widget.headers[i],
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setState(() {
+                                    _selectedFilterCol = v;
+                                    _selectedColValue = _allValuesToken;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        if (_selectedFilterCol != _allColumnsIndex)
+                          Container(
+                            height: 34,
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: BrmsColors.surface,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: BrmsColors.outlineVariant,
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value:
+                                    distinctColValues.contains(
+                                      _selectedColValue,
+                                    )
+                                    ? _selectedColValue
+                                    : _allValuesToken,
+                                isDense: true,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: BrmsColors.onSurface,
+                                ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: _allValuesToken,
+                                    child: Text('All Values'),
+                                  ),
+                                  ...distinctColValues.map(
+                                    (val) => DropdownMenuItem(
+                                      value: val,
+                                      child: Text(
+                                        val,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  if (v != null) {
+                                    setState(() => _selectedColValue = v);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        BrmsButton(
+                          label:
+                              'Columns (${activeColIndices.length}/${widget.headers.length})',
+                          icon: Icons.view_column_outlined,
+                          primary: false,
+                          height: 34,
+                          onPressed: () => setState(
+                            () => _showColumnPicker = !_showColumnPicker,
+                          ),
+                        ),
+                        if (hasActiveFilter)
+                          BrmsButton(
+                            label: 'Reset',
+                            primary: false,
+                            height: 34,
+                            onPressed: _resetFilters,
+                          ),
+                      ],
+                    ),
+                    if (_showColumnPicker) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: List.generate(widget.headers.length, (i) {
+                          final selected = _selectedColIndices.contains(i);
+                          return FilterChip(
+                            label: Text(
+                              widget.headers[i],
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: selected
+                                    ? Colors.white
+                                    : BrmsColors.onSurface,
+                              ),
+                            ),
+                            selected: selected,
+                            selectedColor: BrmsColors.primary,
+                            checkmarkColor: Colors.white,
+                            backgroundColor: BrmsColors.surface,
+                            side: const BorderSide(
+                              color: BrmsColors.outlineVariant,
+                            ),
+                            onSelected: (val) {
+                              setState(() {
+                                if (val) {
+                                  _selectedColIndices.add(i);
+                                } else if (_selectedColIndices.length > 1) {
+                                  _selectedColIndices.remove(i);
+                                }
+                              });
+                            },
+                          );
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: BrmsColors.outlineVariant),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: matchingIndices.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'No rows match your current preview filters.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: BrmsColors.secondary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              BrmsButton(
+                                label: 'Reset Filters',
+                                primary: false,
+                                onPressed: _resetFilters,
+                              ),
+                            ],
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          child: BrmsHorizontalTableScroll(
+                            ensureMinWidth: true,
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                BrmsColors.primary,
+                              ),
+                              headingTextStyle: BrmsTheme.mono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              columnSpacing: 18,
+                              dataRowMinHeight: 34,
+                              dataRowMaxHeight: 40,
+                              columns: [
+                                DataColumn(
+                                  label: Checkbox(
+                                    value: allMatchingSelected,
+                                    side: const BorderSide(
+                                      color: Colors.white70,
+                                    ),
+                                    activeColor: Colors.white,
+                                    checkColor: BrmsColors.primary,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        if (val ?? false) {
+                                          _excludedRowIndices.removeAll(
+                                            matchingIndices,
+                                          );
+                                        } else {
+                                          _excludedRowIndices.addAll(
+                                            matchingIndices,
+                                          );
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
+                                ...exportHeaders.map(
+                                  (h) => DataColumn(label: Text(h)),
+                                ),
+                              ],
+                              rows: [
+                                ...previewIndices.map((rowIdx) {
+                                  final r = widget.rows[rowIdx];
+                                  final isChecked = !_excludedRowIndices
+                                      .contains(rowIdx);
+                                  return DataRow(
+                                    cells: [
+                                      DataCell(
+                                        Checkbox(
+                                          value: isChecked,
+                                          activeColor: BrmsColors.primary,
+                                          onChanged: (val) {
+                                            setState(() {
+                                              if (val ?? false) {
+                                                _excludedRowIndices.remove(
+                                                  rowIdx,
+                                                );
+                                              } else {
+                                                _excludedRowIndices.add(rowIdx);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      ...activeColIndices.map(
+                                        (colIdx) => DataCell(
+                                          ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 260,
+                                            ),
+                                            child: Text(
+                                              colIdx < r.length
+                                                  ? r[colIdx]
+                                                  : '',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isChecked
+                                                    ? BrmsColors.onSurface
+                                                    : BrmsColors.outline,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }),
+                                if (exportTotalRow != null)
+                                  DataRow(
+                                    color: WidgetStateProperty.all(
+                                      BrmsColors.surfaceContainerHigh,
+                                    ),
+                                    cells: [
+                                      const DataCell(SizedBox.shrink()),
+                                      ...exportTotalRow.map(
+                                        (cell) => DataCell(
+                                          Text(
+                                            cell,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    matchingIndices.length > _maxPreviewRows
+                        ? 'Previewing $_maxPreviewRows of ${matchingIndices.length} matching rows (${exportRows.length} selected for export)'
+                        : 'Selected for export: ${exportRows.length} of ${widget.rows.length} rows',
+                    style: BrmsTheme.mono(
+                      fontSize: 11,
+                      color: BrmsColors.secondary,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      BrmsButton(
+                        label: 'Cancel',
+                        primary: false,
+                        onPressed: _isExporting
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(width: 8),
+                      BrmsButton(
+                        label: _isExporting ? 'Exporting...' : 'Export',
+                        icon: Icons.file_download_outlined,
+                        onPressed: _isExporting || exportRows.isEmpty
+                            ? null
+                            : () async {
+                                setState(() => _isExporting = true);
+                                try {
+                                  await widget.onConfirmExport(
+                                    exportHeaders,
+                                    exportRows,
+                                    exportTotalRow,
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.of(context).pop();
+                                  }
+                                } finally {
+                                  if (context.mounted) {
+                                    setState(() => _isExporting = false);
+                                  }
+                                }
+                              },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

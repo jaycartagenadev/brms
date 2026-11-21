@@ -75,25 +75,31 @@ class DashboardObrItem {
   const DashboardObrItem({
     required this.id,
     required this.obrNo,
+    required this.fiscalYear,
     required this.dateRecorded,
     required this.fundCode,
     required this.accountCode,
+    required this.allotmentClassification,
     required this.uacsDescription,
     required this.payee,
     required this.particulars,
     required this.grossAmount,
+    required this.disbursementAmount,
     required this.status,
   });
 
   final int id;
   final String obrNo;
+  final String fiscalYear;
   final String dateRecorded;
   final String fundCode;
   final String accountCode;
+  final String allotmentClassification;
   final String uacsDescription;
   final String payee;
   final String particulars;
   final double grossAmount;
+  final double disbursementAmount;
   final String status;
 }
 
@@ -191,9 +197,21 @@ final dashboardSummaryProvider =
   final fyAllocations = fiscalYear == 'ALL'
       ? allAllocations
       : allAllocations.where((a) => a.fiscalYear == fiscalYear).toList();
-  final fyModifications = fiscalYear == 'ALL'
-      ? allModifications
-      : allModifications.where((m) => m.fiscalYear == fiscalYear).toList();
+  final hiddenAllocIds = allAllocations
+      .where((a) => a.isHidden != 0)
+      .map((a) => a.id)
+      .toSet();
+  final fyModifications = (fiscalYear == 'ALL'
+          ? allModifications
+          : allModifications.where((m) => m.fiscalYear == fiscalYear))
+      .where(
+        (m) =>
+            m.allocationId == null || !hiddenAllocIds.contains(m.allocationId),
+      )
+      .toList();
+  final fyObligations = fiscalYear == 'ALL'
+      ? obligations
+      : obligations.where((o) => o.fiscalYear == fiscalYear).toList();
 
   final activeAllocations =
       fyAllocations.where((a) => a.isHidden == 0).toList();
@@ -208,11 +226,11 @@ final dashboardSummaryProvider =
             a.adjustmentsAllotment,
       ) +
       fyModifications.fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
-  final totalObligated = obligations.fold<double>(
+  final totalObligated = fyObligations.fold<double>(
     0.0,
     (sum, o) => sum + o.grossAmount,
   );
-  final totalDisbursed = obligations.fold<double>(
+  final totalDisbursed = fyObligations.fold<double>(
     0.0,
     (sum, o) => sum + o.disbursementAmount,
   );
@@ -224,7 +242,7 @@ final dashboardSummaryProvider =
     final fundMods =
         fyModifications.where((m) => m.fundCode == f.fundCode).toList();
     final fundObrs =
-        obligations.where((o) => o.fundCode == f.fundCode).toList();
+        fyObligations.where((o) => o.fundCode == f.fundCode).toList();
 
     final allotment = fundAllocs.fold<double>(
           0.0,
@@ -270,7 +288,7 @@ final dashboardSummaryProvider =
         fyModifications
             .where((m) => m.allotmentClass == cls)
             .fold<double>(0.0, (sum, m) => sum + m.modificationAmount);
-    final obligated = obligations
+    final obligated = fyObligations
         .where((o) => o.allotmentClassification == cls)
         .fold<double>(0.0, (sum, o) => sum + o.grossAmount);
     final unobligated = allotment - obligated;
@@ -295,7 +313,7 @@ final dashboardSummaryProvider =
   const quarterLabels = ['Q1 (Jan-Mar)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dec)'];
   final quarterlyBurn = List.generate(4, (idx) {
     final q = idx + 1;
-    final qObrs = obligations
+    final qObrs = fyObligations
         .where((o) => BrmsFormatters.quarterOfIso(o.date) == q)
         .toList();
     final obTotal = qObrs.fold<double>(0.0, (sum, o) => sum + o.grossAmount);
@@ -311,7 +329,7 @@ final dashboardSummaryProvider =
 
   // Top Payee Absorption (up to 6 payees)
   final payeeTotals = <String, double>{};
-  for (final o in obligations) {
+  for (final o in fyObligations) {
     payeeTotals.update(
       o.payee,
       (prev) => prev + o.grossAmount,
@@ -332,7 +350,7 @@ final dashboardSummaryProvider =
   }).toList();
 
   // Recent OBR Items
-  final allObrItems = obligations.map((o) {
+  final allObrItems = fyObligations.map((o) {
     final uacs = uacsByCode[o.accountCode];
     final uacsDesc = uacs != null
         ? '${o.accountCode} • ${uacs.objectTitle}'
@@ -350,13 +368,16 @@ final dashboardSummaryProvider =
     return DashboardObrItem(
       id: o.id,
       obrNo: o.obrNo,
+      fiscalYear: o.fiscalYear,
       dateRecorded: BrmsFormatters.isoToDisplay(o.date),
       fundCode: o.fundCode,
       accountCode: o.accountCode,
+      allotmentClassification: o.allotmentClassification,
       uacsDescription: uacsDesc,
       payee: o.payee,
       particulars: o.particular,
       grossAmount: o.grossAmount,
+      disbursementAmount: o.disbursementAmount,
       status: status,
     );
   }).toList();
@@ -368,7 +389,7 @@ final dashboardSummaryProvider =
       totalDisbursed: totalDisbursed,
       activeAllocationsCount: activeAllocations.length,
       hiddenAllocationsCount: hiddenCount,
-      totalObrCount: obligations.length,
+      totalObrCount: fyObligations.length,
       fundClusters: fundClusters,
       expenseClasses: expenseClasses,
       quarterlyBurn: quarterlyBurn,

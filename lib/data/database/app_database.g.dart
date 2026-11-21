@@ -2102,6 +2102,18 @@ class $ObligationRegistriesTable extends ObligationRegistries
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _fiscalYearMeta = const VerificationMeta(
+    'fiscalYear',
+  );
+  @override
+  late final GeneratedColumn<String> fiscalYear = GeneratedColumn<String>(
+    'fiscal_year',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('2024-2025'),
+  );
   static const VerificationMeta _dateMeta = const VerificationMeta('date');
   @override
   late final GeneratedColumn<String> date = GeneratedColumn<String>(
@@ -2266,6 +2278,7 @@ class $ObligationRegistriesTable extends ObligationRegistries
   List<GeneratedColumn> get $columns => [
     id,
     obrNo,
+    fiscalYear,
     date,
     fundCode,
     mfoProgram,
@@ -2303,6 +2316,12 @@ class $ObligationRegistriesTable extends ObligationRegistries
       );
     } else if (isInserting) {
       context.missing(_obrNoMeta);
+    }
+    if (data.containsKey('fiscal_year')) {
+      context.handle(
+        _fiscalYearMeta,
+        fiscalYear.isAcceptableOrUnknown(data['fiscal_year']!, _fiscalYearMeta),
+      );
     }
     if (data.containsKey('date')) {
       context.handle(
@@ -2446,6 +2465,10 @@ class $ObligationRegistriesTable extends ObligationRegistries
         DriftSqlType.string,
         data['${effectivePrefix}obr_no'],
       )!,
+      fiscalYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fiscal_year'],
+      )!,
       date: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}date'],
@@ -2515,6 +2538,7 @@ class ObligationRegistry extends DataClass
     implements Insertable<ObligationRegistry> {
   final int id;
   final String obrNo;
+  final String fiscalYear;
   final String date;
   final String fundCode;
   final String mfoProgram;
@@ -2532,6 +2556,7 @@ class ObligationRegistry extends DataClass
   const ObligationRegistry({
     required this.id,
     required this.obrNo,
+    required this.fiscalYear,
     required this.date,
     required this.fundCode,
     required this.mfoProgram,
@@ -2552,6 +2577,7 @@ class ObligationRegistry extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['obr_no'] = Variable<String>(obrNo);
+    map['fiscal_year'] = Variable<String>(fiscalYear);
     map['date'] = Variable<String>(date);
     map['fund_code'] = Variable<String>(fundCode);
     map['mfo_program'] = Variable<String>(mfoProgram);
@@ -2579,6 +2605,7 @@ class ObligationRegistry extends DataClass
     return ObligationRegistriesCompanion(
       id: Value(id),
       obrNo: Value(obrNo),
+      fiscalYear: Value(fiscalYear),
       date: Value(date),
       fundCode: Value(fundCode),
       mfoProgram: Value(mfoProgram),
@@ -2610,6 +2637,7 @@ class ObligationRegistry extends DataClass
     return ObligationRegistry(
       id: serializer.fromJson<int>(json['id']),
       obrNo: serializer.fromJson<String>(json['obrNo']),
+      fiscalYear: serializer.fromJson<String>(json['fiscalYear']),
       date: serializer.fromJson<String>(json['date']),
       fundCode: serializer.fromJson<String>(json['fundCode']),
       mfoProgram: serializer.fromJson<String>(json['mfoProgram']),
@@ -2640,6 +2668,7 @@ class ObligationRegistry extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'obrNo': serializer.toJson<String>(obrNo),
+      'fiscalYear': serializer.toJson<String>(fiscalYear),
       'date': serializer.toJson<String>(date),
       'fundCode': serializer.toJson<String>(fundCode),
       'mfoProgram': serializer.toJson<String>(mfoProgram),
@@ -2662,6 +2691,7 @@ class ObligationRegistry extends DataClass
   ObligationRegistry copyWith({
     int? id,
     String? obrNo,
+    String? fiscalYear,
     String? date,
     String? fundCode,
     String? mfoProgram,
@@ -2679,6 +2709,7 @@ class ObligationRegistry extends DataClass
   }) => ObligationRegistry(
     id: id ?? this.id,
     obrNo: obrNo ?? this.obrNo,
+    fiscalYear: fiscalYear ?? this.fiscalYear,
     date: date ?? this.date,
     fundCode: fundCode ?? this.fundCode,
     mfoProgram: mfoProgram ?? this.mfoProgram,
@@ -2703,6 +2734,9 @@ class ObligationRegistry extends DataClass
     return ObligationRegistry(
       id: data.id.present ? data.id.value : this.id,
       obrNo: data.obrNo.present ? data.obrNo.value : this.obrNo,
+      fiscalYear: data.fiscalYear.present
+          ? data.fiscalYear.value
+          : this.fiscalYear,
       date: data.date.present ? data.date.value : this.date,
       fundCode: data.fundCode.present ? data.fundCode.value : this.fundCode,
       mfoProgram: data.mfoProgram.present
@@ -2747,6 +2781,7 @@ class ObligationRegistry extends DataClass
     return (StringBuffer('ObligationRegistry(')
           ..write('id: $id, ')
           ..write('obrNo: $obrNo, ')
+          ..write('fiscalYear: $fiscalYear, ')
           ..write('date: $date, ')
           ..write('fundCode: $fundCode, ')
           ..write('mfoProgram: $mfoProgram, ')
@@ -2769,6 +2804,7 @@ class ObligationRegistry extends DataClass
   int get hashCode => Object.hash(
     id,
     obrNo,
+    fiscalYear,
     date,
     fundCode,
     mfoProgram,
@@ -2790,6 +2826,7 @@ class ObligationRegistry extends DataClass
       (other is ObligationRegistry &&
           other.id == this.id &&
           other.obrNo == this.obrNo &&
+          other.fiscalYear == this.fiscalYear &&
           other.date == this.date &&
           other.fundCode == this.fundCode &&
           other.mfoProgram == this.mfoProgram &&
@@ -2810,6 +2847,7 @@ class ObligationRegistriesCompanion
     extends UpdateCompanion<ObligationRegistry> {
   final Value<int> id;
   final Value<String> obrNo;
+  final Value<String> fiscalYear;
   final Value<String> date;
   final Value<String> fundCode;
   final Value<String> mfoProgram;
@@ -2827,6 +2865,7 @@ class ObligationRegistriesCompanion
   const ObligationRegistriesCompanion({
     this.id = const Value.absent(),
     this.obrNo = const Value.absent(),
+    this.fiscalYear = const Value.absent(),
     this.date = const Value.absent(),
     this.fundCode = const Value.absent(),
     this.mfoProgram = const Value.absent(),
@@ -2845,6 +2884,7 @@ class ObligationRegistriesCompanion
   ObligationRegistriesCompanion.insert({
     this.id = const Value.absent(),
     required String obrNo,
+    this.fiscalYear = const Value.absent(),
     required String date,
     required String fundCode,
     this.mfoProgram = const Value.absent(),
@@ -2870,6 +2910,7 @@ class ObligationRegistriesCompanion
   static Insertable<ObligationRegistry> custom({
     Expression<int>? id,
     Expression<String>? obrNo,
+    Expression<String>? fiscalYear,
     Expression<String>? date,
     Expression<String>? fundCode,
     Expression<String>? mfoProgram,
@@ -2888,6 +2929,7 @@ class ObligationRegistriesCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (obrNo != null) 'obr_no': obrNo,
+      if (fiscalYear != null) 'fiscal_year': fiscalYear,
       if (date != null) 'date': date,
       if (fundCode != null) 'fund_code': fundCode,
       if (mfoProgram != null) 'mfo_program': mfoProgram,
@@ -2910,6 +2952,7 @@ class ObligationRegistriesCompanion
   ObligationRegistriesCompanion copyWith({
     Value<int>? id,
     Value<String>? obrNo,
+    Value<String>? fiscalYear,
     Value<String>? date,
     Value<String>? fundCode,
     Value<String>? mfoProgram,
@@ -2928,6 +2971,7 @@ class ObligationRegistriesCompanion
     return ObligationRegistriesCompanion(
       id: id ?? this.id,
       obrNo: obrNo ?? this.obrNo,
+      fiscalYear: fiscalYear ?? this.fiscalYear,
       date: date ?? this.date,
       fundCode: fundCode ?? this.fundCode,
       mfoProgram: mfoProgram ?? this.mfoProgram,
@@ -2954,6 +2998,9 @@ class ObligationRegistriesCompanion
     }
     if (obrNo.present) {
       map['obr_no'] = Variable<String>(obrNo.value);
+    }
+    if (fiscalYear.present) {
+      map['fiscal_year'] = Variable<String>(fiscalYear.value);
     }
     if (date.present) {
       map['date'] = Variable<String>(date.value);
@@ -3009,6 +3056,7 @@ class ObligationRegistriesCompanion
     return (StringBuffer('ObligationRegistriesCompanion(')
           ..write('id: $id, ')
           ..write('obrNo: $obrNo, ')
+          ..write('fiscalYear: $fiscalYear, ')
           ..write('date: $date, ')
           ..write('fundCode: $fundCode, ')
           ..write('mfoProgram: $mfoProgram, ')
@@ -5404,6 +5452,7 @@ typedef $$ObligationRegistriesTableCreateCompanionBuilder =
     ObligationRegistriesCompanion Function({
       Value<int> id,
       required String obrNo,
+      Value<String> fiscalYear,
       required String date,
       required String fundCode,
       Value<String> mfoProgram,
@@ -5423,6 +5472,7 @@ typedef $$ObligationRegistriesTableUpdateCompanionBuilder =
     ObligationRegistriesCompanion Function({
       Value<int> id,
       Value<String> obrNo,
+      Value<String> fiscalYear,
       Value<String> date,
       Value<String> fundCode,
       Value<String> mfoProgram,
@@ -5505,6 +5555,11 @@ class $$ObligationRegistriesTableFilterComposer
 
   ColumnFilters<String> get obrNo => $composableBuilder(
     column: $table.obrNo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5634,6 +5689,11 @@ class $$ObligationRegistriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get date => $composableBuilder(
     column: $table.date,
     builder: (column) => ColumnOrderings(column),
@@ -5755,6 +5815,11 @@ class $$ObligationRegistriesTableAnnotationComposer
 
   GeneratedColumn<String> get obrNo =>
       $composableBuilder(column: $table.obrNo, builder: (column) => column);
+
+  GeneratedColumn<String> get fiscalYear => $composableBuilder(
+    column: $table.fiscalYear,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
@@ -5897,6 +5962,7 @@ class $$ObligationRegistriesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> obrNo = const Value.absent(),
+                Value<String> fiscalYear = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> fundCode = const Value.absent(),
                 Value<String> mfoProgram = const Value.absent(),
@@ -5914,6 +5980,7 @@ class $$ObligationRegistriesTableTableManager
               }) => ObligationRegistriesCompanion(
                 id: id,
                 obrNo: obrNo,
+                fiscalYear: fiscalYear,
                 date: date,
                 fundCode: fundCode,
                 mfoProgram: mfoProgram,
@@ -5933,6 +6000,7 @@ class $$ObligationRegistriesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String obrNo,
+                Value<String> fiscalYear = const Value.absent(),
                 required String date,
                 required String fundCode,
                 Value<String> mfoProgram = const Value.absent(),
@@ -5950,6 +6018,7 @@ class $$ObligationRegistriesTableTableManager
               }) => ObligationRegistriesCompanion.insert(
                 id: id,
                 obrNo: obrNo,
+                fiscalYear: fiscalYear,
                 date: date,
                 fundCode: fundCode,
                 mfoProgram: mfoProgram,

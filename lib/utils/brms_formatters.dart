@@ -11,20 +11,38 @@ class BrmsFormatters {
   static final DateFormat _isoDateFormat = DateFormat('yyyy-MM-dd');
   static final DateFormat _displayDateFormat = DateFormat('MM-dd-yyyy');
 
-  /// Standard allotment classifications aligned with FAR No. 1-A.
+  /// Standard allotment classifications aligned with FAR No. 1-A / FAR 2.
   static const List<String> allotmentClasses = [
     'Personal Service',
     'Maintenance & Other Operating Expenses',
     'Capital Outlay',
   ];
 
-  /// Standard fiscal year options.
-  static const List<String> fiscalYears = [
-    '2022-2023',
-    '2023-2024',
-    '2024-2025',
-    '2025-2026',
-  ];
+  /// Dynamically generated fiscal year options from 2022-2023 through
+  /// two years ahead of the current calendar year.
+  static List<String> get fiscalYears {
+    final endStartYear = DateTime.now().year + 2;
+    const baseYear = 2022;
+    final count = (endStartYear - baseYear + 1).clamp(4, 30);
+    return List.generate(
+      count,
+      (i) => '${baseYear + i}-${baseYear + i + 1}',
+      growable: false,
+    );
+  }
+
+  /// Current default fiscal year string (e.g., `2026-2027`).
+  static String get currentFiscalYear {
+    final year = DateTime.now().year;
+    return '$year-${year + 1}';
+  }
+
+  /// Derives a fiscal year label (`YYYY-(YYYY+1)`) from an ISO-8601 date.
+  static String fiscalYearForIsoDate(String iso) {
+    final parsed = parseIsoDate(iso);
+    if (parsed == null) return currentFiscalYear;
+    return '${parsed.year}-${parsed.year + 1}';
+  }
 
   /// Fixed allowed `mfo_program` values in exact FAR 2 reporting order.
   static const List<String> mfoPrograms = [

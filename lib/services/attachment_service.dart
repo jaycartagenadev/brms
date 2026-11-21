@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+import 'file_ops.dart';
 
 /// Represents a PDF file selected by the user before it is persisted to
 /// `brms_attachments/`.
@@ -17,7 +16,8 @@ class PickedPdfAttachment {
   final String originalFilename;
 }
 
-/// Manages local PDF attachments inside `<app_docs>/brms_attachments/`.
+/// Manages local PDF attachments inside `<app_docs>/brms_attachments/` on Desktop
+/// with graceful web handling.
 class AttachmentService {
   const AttachmentService();
 
@@ -25,6 +25,7 @@ class AttachmentService {
 
   /// Opens the native file picker restricted to `.pdf` files.
   Future<PickedPdfAttachment?> pickPdf() async {
+    if (kIsWeb) return null;
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
@@ -48,47 +49,37 @@ class AttachmentService {
     required String originalFilename,
     required String obrNo,
   }) async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final attachmentsDir = Directory(
-      p.join(docsDir.path, _attachmentsFolderName),
-    );
-    if (!await attachmentsDir.exists()) {
-      await attachmentsDir.create(recursive: true);
-    }
-
     final safeObr = _sanitizeSegment(obrNo);
-    final baseName = _sanitizeSegment(p.basenameWithoutExtension(originalFilename));
-    final ext = p.extension(originalFilename).toLowerCase() == '.pdf'
-        ? '.pdf'
-        : '.pdf';
-    final targetFilename = '${safeObr}_$baseName$ext';
-    final targetPath = p.join(attachmentsDir.path, targetFilename);
+    final baseName =
+        _sanitizeSegment(p.basenameWithoutExtension(originalFilename));
+    final targetFilename = '${safeObr}_$baseName.pdf';
 
-    final sourceFile = File(sourcePath);
-    if (sourceFile.absolute.path != File(targetPath).absolute.path) {
-      await sourceFile.copy(targetPath);
-    }
+    final targetPath = await copyFileToDocumentsSubfolder(
+      sourcePath: sourcePath,
+      subfolder: _attachmentsFolderName,
+      targetFilename: targetFilename,
+    );
 
     return (filename: targetFilename, localPath: targetPath);
   }
 
-  /// Opens a local PDF file using the OS default viewer via `open_filex`.
+  /// Deletes a local attachment file if it exists (used when replacing/removing
+  /// attachments or deleting an OBR).
+  Future<void> deleteAttachment(String? localPath) async {
+    if (kIsWeb || localPath == null || localPath.trim().isEmpty) return;
+    await deleteLocalFileIfExists(localPath);
+  }
+
+  /// Opens a local PDF file using the OS default viewer on Desktop.
   /// Returns `null` on success, or an error message if opening fails.
   Future<String?> openAttachment(String? localPath) async {
+    if (kIsWeb) {
+      return 'Opening local PDF files is only supported on Desktop.';
+    }
     if (localPath == null || localPath.trim().isEmpty) {
       return 'No PDF attachment is linked to this OBR.';
     }
-    final file = File(localPath);
-    if (!await file.exists()) {
-      return 'Attachment file not found at $localPath';
-    }
-    final result = await OpenFilex.open(localPath);
-    if (result.type != ResultType.done) {
-      return result.message.isNotEmpty
-          ? result.message
-          : 'Unable to open PDF attachment.';
-    }
-    return null;
+    return openLocalFile(localPath);
   }
 
   String _sanitizeSegment(String input) {

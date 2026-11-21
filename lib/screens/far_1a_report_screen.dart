@@ -38,6 +38,8 @@ class _SuperHeaderSpan {
 }
 
 /// Screen 5: BRMS CSU Aparri - Reports (FAR 2, FAR 2 - A, Registries, Central).
+typedef ReportsScreen = Far1AReportScreen;
+
 class Far1AReportScreen extends ConsumerStatefulWidget {
   const Far1AReportScreen({super.key, this.reportType = ReportType.far2});
 
@@ -57,11 +59,6 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
   String _fundCode = 'ALL';
   String _searchQuery = '';
   final _searchController = TextEditingController();
-
-  /// Expanded state for FAR 2 MFO parent rows.
-  final Set<String> _expandedMfos = Set<String>.from(
-    BrmsFormatters.mfoPrograms,
-  );
 
   /// Per-column filter selections for Central and Registries headers.
   final Map<String, String> _columnFilters = <String, String>{};
@@ -186,36 +183,83 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
     }).toList();
   }
 
+  ReportExportFilters get _activeExportFilters => ReportExportFilters(
+    searchQuery: _searchQuery,
+    far2MfoFilter: _far2MfoFilter,
+    far2ClassFilter: _far2ClassFilter,
+    far2aClassFilter: _selectedCat,
+    metricActivityFilter: _metricActivityFilter,
+  );
+
   Future<void> _exportCsv(
     UnifiedReportBundle bundle,
     List<FundSource> funds,
     List<_MatrixColSpec> activeCols,
   ) async {
-    setState(() => _isExporting = true);
-    try {
-      final filteredCentral = _filterCentralRows(
-        bundle.centralRows,
-        activeCols,
-      );
-      final meta = _buildExportMeta(funds);
-      final msg = await ref
-          .read(reportExportServiceProvider)
-          .exportCsv(
-            meta: meta,
-            bundle: bundle,
-            filteredCentralRows: filteredCentral,
-            far2aClassFilter: _selectedCat,
-          );
-      if (msg != null && mounted) {
-        showBrmsNotice(context, msg);
-      }
-    } catch (e) {
-      if (mounted) {
-        showBrmsNotice(context, 'CSV export failed: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
+    final filteredCentral = _filterCentralRows(bundle.centralRows, activeCols);
+    final meta = _buildExportMeta(funds);
+    final filters = _activeExportFilters;
+    final preview = ref
+        .read(reportExportServiceProvider)
+        .buildPreviewData(
+          meta: meta,
+          bundle: bundle,
+          filteredCentralRows: filteredCentral,
+          filters: filters,
+        );
+
+    await showBrmsExportPreviewDialog(
+      context,
+      title: '${meta.reportType.label} — ${meta.reportType.subtitle}',
+      formatLabel: 'CSV / EXCEL',
+      headers: preview.headers,
+      rows: preview.rows,
+      totalRow: preview.totalRow,
+      metadata: [
+        MapEntry('Fiscal Year', meta.fiscalYearLabel),
+        MapEntry('Period', meta.periodLabel),
+        MapEntry('Fund Cluster', meta.fundLabel),
+        if (meta.classFilterLabel != null)
+          MapEntry('Class', meta.classFilterLabel!),
+      ],
+      onConfirmExport: (exportHeaders, exportRows, exportTotalRow) async {
+        setState(() => _isExporting = true);
+        try {
+          final isUnmodifiedColumns =
+              exportHeaders.length == preview.headers.length;
+          final filteredTable = isUnmodifiedColumns
+              ? null
+              : TabularReportData(
+                  labelColumnCount: preview.labelColumnCount.clamp(
+                    1,
+                    exportHeaders.length,
+                  ),
+                  headers: exportHeaders,
+                  rows: exportRows,
+                  totalRow:
+                      exportTotalRow ?? List.filled(exportHeaders.length, ''),
+                );
+          final msg = await ref
+              .read(reportExportServiceProvider)
+              .exportCsv(
+                meta: meta,
+                bundle: bundle,
+                filteredCentralRows: filteredCentral,
+                filters: filters,
+                overrideTable: filteredTable,
+              );
+          if (msg != null && mounted) {
+            showBrmsNotice(context, msg);
+          }
+        } catch (e) {
+          if (mounted) {
+            showBrmsNotice(context, 'CSV export failed: $e');
+          }
+        } finally {
+          if (mounted) setState(() => _isExporting = false);
+        }
+      },
+    );
   }
 
   Future<void> _exportPdf(
@@ -223,31 +267,69 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
     List<FundSource> funds,
     List<_MatrixColSpec> activeCols,
   ) async {
-    setState(() => _isExporting = true);
-    try {
-      final filteredCentral = _filterCentralRows(
-        bundle.centralRows,
-        activeCols,
-      );
-      final meta = _buildExportMeta(funds);
-      final msg = await ref
-          .read(reportExportServiceProvider)
-          .exportLandscapePdf(
-            meta: meta,
-            bundle: bundle,
-            filteredCentralRows: filteredCentral,
-            far2aClassFilter: _selectedCat,
-          );
-      if (msg != null && mounted) {
-        showBrmsNotice(context, msg);
-      }
-    } catch (e) {
-      if (mounted) {
-        showBrmsNotice(context, 'PDF export failed: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
+    final filteredCentral = _filterCentralRows(bundle.centralRows, activeCols);
+    final meta = _buildExportMeta(funds);
+    final filters = _activeExportFilters;
+    final preview = ref
+        .read(reportExportServiceProvider)
+        .buildPreviewData(
+          meta: meta,
+          bundle: bundle,
+          filteredCentralRows: filteredCentral,
+          filters: filters,
+        );
+
+    await showBrmsExportPreviewDialog(
+      context,
+      title: '${meta.reportType.label} — ${meta.reportType.subtitle}',
+      formatLabel: 'LANDSCAPE PDF',
+      headers: preview.headers,
+      rows: preview.rows,
+      totalRow: preview.totalRow,
+      metadata: [
+        MapEntry('Fiscal Year', meta.fiscalYearLabel),
+        MapEntry('Period', meta.periodLabel),
+        MapEntry('Fund Cluster', meta.fundLabel),
+        const MapEntry('Page Format', 'Legal Landscape'),
+      ],
+      onConfirmExport: (exportHeaders, exportRows, exportTotalRow) async {
+        setState(() => _isExporting = true);
+        try {
+          final isUnmodifiedColumns =
+              exportHeaders.length == preview.headers.length;
+          final filteredTable = isUnmodifiedColumns
+              ? null
+              : TabularReportData(
+                  labelColumnCount: preview.labelColumnCount.clamp(
+                    1,
+                    exportHeaders.length,
+                  ),
+                  headers: exportHeaders,
+                  rows: exportRows,
+                  totalRow:
+                      exportTotalRow ?? List.filled(exportHeaders.length, ''),
+                );
+          final msg = await ref
+              .read(reportExportServiceProvider)
+              .exportLandscapePdf(
+                meta: meta,
+                bundle: bundle,
+                filteredCentralRows: filteredCentral,
+                filters: filters,
+                overrideTable: filteredTable,
+              );
+          if (msg != null && mounted) {
+            showBrmsNotice(context, msg);
+          }
+        } catch (e) {
+          if (mounted) {
+            showBrmsNotice(context, 'PDF export failed: $e');
+          }
+        } finally {
+          if (mounted) setState(() => _isExporting = false);
+        }
+      },
+    );
   }
 
   ReportExportMeta _buildExportMeta(List<FundSource> funds) {
@@ -392,8 +474,8 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                   ),
                   const SizedBox(width: 8),
                   BrmsButton(
-                    label: 'Print Official PDF',
-                    icon: Icons.print_outlined,
+                    label: 'Export PDF',
+                    icon: Icons.picture_as_pdf_outlined,
                     onPressed: _isExporting
                         ? null
                         : () => _exportPdf(bundle, funds, activeCols),
@@ -685,28 +767,32 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
             ],
           )
         else if (widget.reportType == ReportType.far2)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              BrmsButton(
-                label: 'Expand All MFOs',
-                icon: Icons.unfold_more,
-                primary: false,
-                height: 32,
-                onPressed: () => setState(
-                  () => _expandedMfos.addAll(BrmsFormatters.mfoPrograms),
-                ),
-              ),
-              BrmsButton(
-                label: 'Collapse All',
-                icon: Icons.unfold_less,
-                primary: false,
-                height: 32,
-                onPressed: () => setState(() => _expandedMfos.clear()),
-              ),
-              BrmsTableFilterSelect<String>(
+          Builder(
+            builder: (context) {
+              final expandedMfos = ref.watch(far2ExpandedMfosProvider);
+              final hasExpanded = expandedMfos.isNotEmpty;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  BrmsButton(
+                    label: hasExpanded ? 'Collapse All MFOs' : 'Expand All MFOs',
+                    icon: hasExpanded ? Icons.unfold_less : Icons.unfold_more,
+                    primary: false,
+                    height: 32,
+                    onPressed: () {
+                      final notifier = ref.read(
+                        far2ExpandedMfosProvider.notifier,
+                      );
+                      if (hasExpanded) {
+                        notifier.collapseAll();
+                      } else {
+                        notifier.expandAll();
+                      }
+                    },
+                  ),
+                  BrmsTableFilterSelect<String>(
                 label: 'PROGRAM:',
                 value: _far2MfoFilter,
                 items: [
@@ -767,6 +853,8 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                 },
               ),
             ],
+          );
+            },
           )
         else
           Row(
@@ -1663,7 +1751,9 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
 
   Widget _buildFar2Table(UnifiedReportBundle bundle) {
     final q = _searchQuery.trim().toLowerCase();
+    final expandedMfos = ref.watch(far2ExpandedMfosProvider);
     final rows = <DataRow>[];
+    var grandTotal = const ReportMetrics();
 
     for (final group in bundle.far2Groups) {
       if (_far2MfoFilter != 'ALL' && group.mfoProgram != _far2MfoFilter) {
@@ -1688,18 +1778,20 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
         continue;
       }
 
-      final isExpanded = _expandedMfos.contains(group.mfoProgram);
+      final groupTotal = matchingChildren.fold<ReportMetrics>(
+        const ReportMetrics(),
+        (s, c) => s + c.metrics,
+      );
+      grandTotal = grandTotal + groupTotal;
+
+      final isExpanded = expandedMfos.contains(group.mfoProgram);
       rows.add(
         DataRow(
           color: WidgetStateProperty.all(BrmsColors.surfaceContainerLow),
           onSelectChanged: (_) {
-            setState(() {
-              if (isExpanded) {
-                _expandedMfos.remove(group.mfoProgram);
-              } else {
-                _expandedMfos.add(group.mfoProgram);
-              }
-            });
+            ref
+                .read(far2ExpandedMfosProvider.notifier)
+                .toggle(group.mfoProgram);
           },
           cells: [
             DataCell(
@@ -1730,7 +1822,7 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                 ),
               ),
             ),
-            ..._metricDataCells(group.total, bold: true),
+            ..._metricDataCells(groupTotal, bold: true),
           ],
         ),
       );
@@ -1781,7 +1873,7 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
               ),
             ),
           ),
-          ..._metricDataCells(bundle.far2GrandTotal, bold: true),
+          ..._metricDataCells(grandTotal, bold: true),
         ],
       ),
     );
