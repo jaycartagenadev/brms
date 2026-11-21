@@ -507,6 +507,62 @@ class _BrmsHorizontalTableScrollState extends State<BrmsHorizontalTableScroll> {
   }
 }
 
+/// Compact monochrome dropdown filter pill for BRMS data tables.
+class BrmsTableFilterSelect<T> extends StatelessWidget {
+  const BrmsTableFilterSelect({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String label;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: BrmsColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: BrmsColors.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: BrmsTheme.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: BrmsColors.secondary,
+            ),
+          ),
+          const SizedBox(width: 6),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isDense: true,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: BrmsColors.onSurface,
+              ),
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Clears default zero text (e.g. `0.00`) when a numeric field gains focus so
 /// it behaves like a placeholder rather than retaining `0.00` before user input.
 void clearZeroTextOnFocus(TextEditingController controller, bool hasFocus) {

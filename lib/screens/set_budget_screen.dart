@@ -37,6 +37,18 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
   final _modificationController = TextEditingController();
   final _tableSearchController = TextEditingController();
   String _tableSearchQuery = '';
+  String _tableFyFilter = 'ALL';
+  String _tableFundFilter = 'ALL';
+  String _tableProgramFilter = 'ALL';
+  String _tableClassFilter = 'ALL';
+  String _tableVisibilityFilter = 'ALL';
+
+  final _modSearchController = TextEditingController();
+  String _modSearchQuery = '';
+  String _modFyFilter = 'ALL';
+  String _modFundFilter = 'ALL';
+  String _modClassFilter = 'ALL';
+  String _modDirectionFilter = 'ALL';
   bool _isSaving = false;
 
   @override
@@ -58,6 +70,7 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     _amountController.dispose();
     _modificationController.dispose();
     _tableSearchController.dispose();
+    _modSearchController.dispose();
     super.dispose();
   }
 
@@ -978,48 +991,242 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
               ),
             ),
             data: (rows) {
-              final filtered = _tableSearchQuery.isEmpty
-                  ? rows
-                  : rows.where((r) {
-                      return r.fiscalYear.toLowerCase().contains(
-                            _tableSearchQuery,
-                          ) ||
-                          r.fundCode.toLowerCase().contains(
-                            _tableSearchQuery,
-                          ) ||
-                          r.mfoProgram.toLowerCase().contains(
-                            _tableSearchQuery,
-                          ) ||
-                          r.activityProject.toLowerCase().contains(
-                            _tableSearchQuery,
-                          ) ||
-                          r.allotmentClass.toLowerCase().contains(
-                            _tableSearchQuery,
-                          ) ||
-                          (r.accountCode ?? '').toLowerCase().contains(
-                            _tableSearchQuery,
-                          );
-                    }).toList();
+              final fyValues = rows.map((r) => r.fiscalYear).toSet().toList()
+                ..sort();
+              final fundValues = rows.map((r) => r.fundCode).toSet().toList()
+                ..sort();
+              final programValues = rows
+                  .map((r) => r.mfoProgram)
+                  .toSet()
+                  .toList()
+                ..sort();
+              final classValues = rows
+                  .map((r) => r.allotmentClass)
+                  .toSet()
+                  .toList()
+                ..sort();
 
-              if (filtered.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Text(
-                      'No budget allocations recorded yet. Use the form above to add one.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: BrmsColors.secondary,
+              final activeFy = fyValues.contains(_tableFyFilter)
+                  ? _tableFyFilter
+                  : 'ALL';
+              final activeFund = fundValues.contains(_tableFundFilter)
+                  ? _tableFundFilter
+                  : 'ALL';
+              final activeProgram = programValues.contains(_tableProgramFilter)
+                  ? _tableProgramFilter
+                  : 'ALL';
+              final activeClass = classValues.contains(_tableClassFilter)
+                  ? _tableClassFilter
+                  : 'ALL';
+
+              final hasTableFilters = activeFy != 'ALL' ||
+                  activeFund != 'ALL' ||
+                  activeProgram != 'ALL' ||
+                  activeClass != 'ALL' ||
+                  _tableVisibilityFilter != 'ALL' ||
+                  _tableSearchQuery.isNotEmpty;
+
+              final filtered = rows.where((r) {
+                if (activeFy != 'ALL' && r.fiscalYear != activeFy) return false;
+                if (activeFund != 'ALL' && r.fundCode != activeFund) {
+                  return false;
+                }
+                if (activeProgram != 'ALL' && r.mfoProgram != activeProgram) {
+                  return false;
+                }
+                if (activeClass != 'ALL' && r.allotmentClass != activeClass) {
+                  return false;
+                }
+                if (_tableVisibilityFilter == 'ACTIVE' && r.isHidden != 0) {
+                  return false;
+                }
+                if (_tableVisibilityFilter == 'HIDDEN' && r.isHidden == 0) {
+                  return false;
+                }
+                if (_tableSearchQuery.isNotEmpty) {
+                  final match =
+                      r.fiscalYear.toLowerCase().contains(_tableSearchQuery) ||
+                      r.fundCode.toLowerCase().contains(_tableSearchQuery) ||
+                      r.mfoProgram.toLowerCase().contains(_tableSearchQuery) ||
+                      r.activityProject.toLowerCase().contains(
+                        _tableSearchQuery,
+                      ) ||
+                      r.allotmentClass.toLowerCase().contains(
+                        _tableSearchQuery,
+                      ) ||
+                      (r.accountCode ?? '').toLowerCase().contains(
+                        _tableSearchQuery,
+                      );
+                  if (!match) return false;
+                }
+                return true;
+              }).toList();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (rows.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          BrmsTableFilterSelect<String>(
+                            label: 'FY:',
+                            value: activeFy,
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All Years'),
+                              ),
+                              ...fyValues.map(
+                                (v) => DropdownMenuItem(
+                                  value: v,
+                                  child: Text(v),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _tableFyFilter = v);
+                              }
+                            },
+                          ),
+                          BrmsTableFilterSelect<String>(
+                            label: 'FUND:',
+                            value: activeFund,
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All Funds'),
+                              ),
+                              ...fundValues.map(
+                                (v) => DropdownMenuItem(
+                                  value: v,
+                                  child: Text('Fund $v'),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _tableFundFilter = v);
+                              }
+                            },
+                          ),
+                          BrmsTableFilterSelect<String>(
+                            label: 'PROGRAM:',
+                            value: activeProgram,
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All Programs'),
+                              ),
+                              ...programValues.map(
+                                (v) => DropdownMenuItem(
+                                  value: v,
+                                  child: Text(
+                                    v,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _tableProgramFilter = v);
+                              }
+                            },
+                          ),
+                          BrmsTableFilterSelect<String>(
+                            label: 'CLASS:',
+                            value: activeClass,
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All Classes'),
+                              ),
+                              ...classValues.map(
+                                (v) => DropdownMenuItem(
+                                  value: v,
+                                  child: Text(
+                                    BrmsFormatters.shortAllotmentLabel(v),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _tableClassFilter = v);
+                              }
+                            },
+                          ),
+                          BrmsTableFilterSelect<String>(
+                            label: 'STATUS:',
+                            value: _tableVisibilityFilter,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'ALL',
+                                child: Text('All'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'ACTIVE',
+                                child: Text('Active Only'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'HIDDEN',
+                                child: Text('Hidden Only'),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _tableVisibilityFilter = v);
+                              }
+                            },
+                          ),
+                          if (hasTableFilters)
+                            BrmsButton(
+                              label: 'Reset',
+                              primary: false,
+                              height: 34,
+                              onPressed: () {
+                                _tableSearchController.clear();
+                                setState(() {
+                                  _tableSearchQuery = '';
+                                  _tableFyFilter = 'ALL';
+                                  _tableFundFilter = 'ALL';
+                                  _tableProgramFilter = 'ALL';
+                                  _tableClassFilter = 'ALL';
+                                  _tableVisibilityFilter = 'ALL';
+                                });
+                              },
+                            ),
+                        ],
                       ),
                     ),
-                  ),
-                );
-              }
-
-              return BrmsHorizontalTableScroll(
-                ensureMinWidth: true,
-                child: DataTable(
-                  columnSpacing: 20,
+                    const Divider(height: 1, color: BrmsColors.outlineVariant),
+                  ],
+                  if (filtered.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Text(
+                          rows.isEmpty
+                              ? 'No budget allocations recorded yet. Use the form above to add one.'
+                              : 'No budget allocations match the active filters.',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: BrmsColors.secondary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    BrmsHorizontalTableScroll(
+                      ensureMinWidth: true,
+                      child: DataTable(
+                        columnSpacing: 20,
                         horizontalMargin: 12,
                         headingTextStyle: const TextStyle(
                           fontSize: 11,
@@ -1211,6 +1418,8 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
                           );
                         }).toList(),
                       ),
+                    ),
+                ],
               );
             },
           ),
@@ -1225,42 +1434,237 @@ class _SetBudgetScreenState extends ConsumerState<SetBudgetScreen> {
     final mods = modificationsAsync.value ?? const <BudgetModification>[];
     if (mods.isEmpty) return const SizedBox.shrink();
 
+    final fyValues = mods.map((m) => m.fiscalYear).toSet().toList()..sort();
+    final fundValues = mods.map((m) => m.fundCode).toSet().toList()..sort();
+    final classValues = mods.map((m) => m.allotmentClass).toSet().toList()
+      ..sort();
+
+    final activeFy = fyValues.contains(_modFyFilter) ? _modFyFilter : 'ALL';
+    final activeFund = fundValues.contains(_modFundFilter)
+        ? _modFundFilter
+        : 'ALL';
+    final activeClass = classValues.contains(_modClassFilter)
+        ? _modClassFilter
+        : 'ALL';
+    final hasModFilters = activeFy != 'ALL' ||
+        activeFund != 'ALL' ||
+        activeClass != 'ALL' ||
+        _modDirectionFilter != 'ALL' ||
+        _modSearchQuery.isNotEmpty;
+
+    final filteredMods = mods.where((m) {
+      if (activeFy != 'ALL' && m.fiscalYear != activeFy) return false;
+      if (activeFund != 'ALL' && m.fundCode != activeFund) return false;
+      if (activeClass != 'ALL' && m.allotmentClass != activeClass) return false;
+      if (_modDirectionFilter == 'ADD' && m.modificationAmount <= 0) {
+        return false;
+      }
+      if (_modDirectionFilter == 'DEDUCT' && m.modificationAmount >= 0) {
+        return false;
+      }
+      if (_modSearchQuery.isNotEmpty) {
+        final match = m.mfoProgram.toLowerCase().contains(_modSearchQuery) ||
+            m.activityProject.toLowerCase().contains(_modSearchQuery) ||
+            m.fundCode.toLowerCase().contains(_modSearchQuery) ||
+            m.fiscalYear.toLowerCase().contains(_modSearchQuery);
+        if (!match) return false;
+      }
+      return true;
+    }).toList();
+
     return BrmsCard(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Quarterly Budget Modifications & Realignments',
-            style: BrmsTheme.heading(fontSize: 16, fontWeight: FontWeight.w700),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quarterly Budget Modifications & Realignments',
+                    style: BrmsTheme.heading(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Adjustments applied to Adjusted Budget columns across Central, Registries, FAR 2, and FAR 2-A',
+                    style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
+                  ),
+                ],
+              ),
+              SizedBox(
+                width: 220,
+                height: 34,
+                child: TextField(
+                  controller: _modSearchController,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      BrmsInputLimits.maxSearchLength,
+                    ),
+                  ],
+                  onChanged: (v) => setState(
+                    () => _modSearchQuery = v.trim().toLowerCase(),
+                  ),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 16,
+                      color: BrmsColors.secondary,
+                    ),
+                    hintText: 'Filter modifications...',
+                    hintStyle: const TextStyle(
+                      fontSize: 12,
+                      color: BrmsColors.secondary,
+                    ),
+                    filled: true,
+                    fillColor: BrmsColors.surfaceContainerLow,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(
+                        color: BrmsColors.outlineVariant,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: BrmsColors.primary),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
-          const Text(
-            'Adjustments applied to Adjusted Budget columns across Central, Registries, FAR 2, and FAR 2-A',
-            style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              BrmsTableFilterSelect<String>(
+                label: 'FY:',
+                value: activeFy,
+                items: [
+                  const DropdownMenuItem(
+                    value: 'ALL',
+                    child: Text('All Years'),
+                  ),
+                  ...fyValues.map(
+                    (v) => DropdownMenuItem(value: v, child: Text(v)),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _modFyFilter = v);
+                },
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'FUND:',
+                value: activeFund,
+                items: [
+                  const DropdownMenuItem(
+                    value: 'ALL',
+                    child: Text('All Funds'),
+                  ),
+                  ...fundValues.map(
+                    (v) => DropdownMenuItem(value: v, child: Text('Fund $v')),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _modFundFilter = v);
+                },
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'CLASS:',
+                value: activeClass,
+                items: [
+                  const DropdownMenuItem(
+                    value: 'ALL',
+                    child: Text('All Classes'),
+                  ),
+                  ...classValues.map(
+                    (v) => DropdownMenuItem(
+                      value: v,
+                      child: Text(BrmsFormatters.shortAllotmentLabel(v)),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _modClassFilter = v);
+                },
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'TYPE:',
+                value: _modDirectionFilter,
+                items: const [
+                  DropdownMenuItem(value: 'ALL', child: Text('All')),
+                  DropdownMenuItem(value: 'ADD', child: Text('Additions (+)')),
+                  DropdownMenuItem(
+                    value: 'DEDUCT',
+                    child: Text('Deductions (-)'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _modDirectionFilter = v);
+                },
+              ),
+              if (hasModFilters)
+                BrmsButton(
+                  label: 'Reset',
+                  primary: false,
+                  height: 34,
+                  onPressed: () {
+                    _modSearchController.clear();
+                    setState(() {
+                      _modSearchQuery = '';
+                      _modFyFilter = 'ALL';
+                      _modFundFilter = 'ALL';
+                      _modClassFilter = 'ALL';
+                      _modDirectionFilter = 'ALL';
+                    });
+                  },
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           const Divider(height: 1, color: BrmsColors.outlineVariant),
-          BrmsHorizontalTableScroll(
-            ensureMinWidth: true,
-            child: DataTable(
-              columnSpacing: 20,
-              horizontalMargin: 12,
-              headingTextStyle: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: BrmsColors.secondary,
+          if (filteredMods.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: Text(
+                  'No budget modifications match the active filters.',
+                  style: TextStyle(fontSize: 12, color: BrmsColors.secondary),
+                ),
               ),
-              columns: const [
-                DataColumn(label: Text('DATE')),
-                DataColumn(label: Text('FY')),
-                DataColumn(label: Text('FUND')),
-                DataColumn(label: Text('PROGRAM / ACTIVITY')),
-                DataColumn(label: Text('CLASS')),
-                DataColumn(label: Text('MODIFICATION'), numeric: true),
-                DataColumn(label: Text('ACTION')),
-              ],
-              rows: mods.map((m) {
+            )
+          else
+            BrmsHorizontalTableScroll(
+              ensureMinWidth: true,
+              child: DataTable(
+                columnSpacing: 20,
+                horizontalMargin: 12,
+                headingTextStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: BrmsColors.secondary,
+                ),
+                columns: const [
+                  DataColumn(label: Text('DATE')),
+                  DataColumn(label: Text('FY')),
+                  DataColumn(label: Text('FUND')),
+                  DataColumn(label: Text('PROGRAM / ACTIVITY')),
+                  DataColumn(label: Text('CLASS')),
+                  DataColumn(label: Text('MODIFICATION'), numeric: true),
+                  DataColumn(label: Text('ACTION')),
+                ],
+                rows: filteredMods.map((m) {
                 return DataRow(
                   cells: [
                     DataCell(

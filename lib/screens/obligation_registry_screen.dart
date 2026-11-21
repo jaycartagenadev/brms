@@ -41,6 +41,7 @@ class _ObligationRegistryScreenState
   String _fundFilter = 'ALL';
   String _classFilter = 'ALL';
   String _periodFilter = 'ALL';
+  String _payeeFilter = 'ALL';
   _ObrSortOption _sortOption = _ObrSortOption.dateDesc;
 
   // Form state
@@ -333,6 +334,7 @@ class _ObligationRegistryScreenState
         final expected = int.tryParse(_periodFilter.replaceAll('Q', ''));
         if (quarter != expected) return false;
       }
+      if (_payeeFilter != 'ALL' && r.payee != _payeeFilter) return false;
       if (q.isNotEmpty) {
         final match =
             r.obrNo.toLowerCase().contains(q) ||
@@ -472,6 +474,14 @@ class _ObligationRegistryScreenState
   }
 
   Widget _buildFilterControlsBar(List<FundSource> funds) {
+    final payees = ref.watch(distinctPayeesProvider).value ?? const <String>[];
+    final activePayee = payees.contains(_payeeFilter) ? _payeeFilter : 'ALL';
+    final hasFilters = _fundFilter != 'ALL' ||
+        _classFilter != 'ALL' ||
+        _periodFilter != 'ALL' ||
+        activePayee != 'ALL' ||
+        _searchQuery.trim().isNotEmpty;
+
     final fundItems = <DropdownMenuItem<String>>[
       const DropdownMenuItem(
         value: 'ALL',
@@ -576,6 +586,26 @@ class _ObligationRegistryScreenState
               if (v != null) setState(() => _periodFilter = v);
             },
           ),
+          if (payees.isNotEmpty)
+            _CompactSelect<String>(
+              icon: Icons.person_outline,
+              value: activePayee,
+              items: [
+                const DropdownMenuItem(
+                  value: 'ALL',
+                  child: Text('Payee: All'),
+                ),
+                ...payees.map(
+                  (p) => DropdownMenuItem(
+                    value: p,
+                    child: Text(p, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _payeeFilter = v);
+              },
+            ),
           _CompactSelect<_ObrSortOption>(
             icon: Icons.swap_vert,
             value: _sortOption,
@@ -586,6 +616,23 @@ class _ObligationRegistryScreenState
               if (v != null) setState(() => _sortOption = v);
             },
           ),
+          if (hasFilters)
+            BrmsButton(
+              label: 'Reset',
+              primary: false,
+              height: 36,
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                  _fundFilter = 'ALL';
+                  _classFilter = 'ALL';
+                  _periodFilter = 'ALL';
+                  _payeeFilter = 'ALL';
+                  _sortOption = _ObrSortOption.dateDesc;
+                });
+              },
+            ),
         ],
       ),
     );

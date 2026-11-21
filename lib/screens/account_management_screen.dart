@@ -26,6 +26,7 @@ class _AccountManagementScreenState
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _roleFilter = _allRolesValue;
+  String _accessLevelFilter = 'ALL';
   String _statusFilter = 'All States';
   int _currentPage = 1;
 
@@ -67,6 +68,11 @@ class _AccountManagementScreenState
         }
       }
 
+      if (_accessLevelFilter != 'ALL' &&
+          user.accessLevel != _accessLevelFilter) {
+        return false;
+      }
+
       switch (_statusFilter) {
         case 'Active Workstation':
           if (user.status != 'ACTIVE') return false;
@@ -85,6 +91,7 @@ class _AccountManagementScreenState
     setState(() {
       _searchQuery = '';
       _roleFilter = _allRolesValue;
+      _accessLevelFilter = 'ALL';
       _statusFilter = 'All States';
       _currentPage = 1;
     });
@@ -684,6 +691,39 @@ class _AccountManagementScreenState
                         if (v != null) {
                           setState(() {
                             _roleFilter = v;
+                            _currentPage = 1;
+                          });
+                        }
+                      },
+                    ),
+                    _DropdownChip(
+                      label: 'ACCESS:',
+                      value: accountState.users.any(
+                                (u) => u.accessLevel == _accessLevelFilter,
+                              )
+                          ? _accessLevelFilter
+                          : 'ALL',
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'ALL',
+                          child: Text('All Levels'),
+                        ),
+                        ...(accountState.users
+                              .map((u) => u.accessLevel)
+                              .toSet()
+                              .toList()
+                            ..sort())
+                            .map(
+                              (lvl) => DropdownMenuItem(
+                                value: lvl,
+                                child: Text(lvl),
+                              ),
+                            ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() {
+                            _accessLevelFilter = v;
                             _currentPage = 1;
                           });
                         }

@@ -49,6 +49,9 @@ class Far1AReportScreen extends ConsumerStatefulWidget {
 
 class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
   String _selectedCat = 'ALL';
+  String _far2MfoFilter = 'ALL';
+  String _far2ClassFilter = 'ALL';
+  String _metricActivityFilter = 'ALL';
   String _fy = 'ALL';
   int _maxQuarter = 0; // 0 = Full Year, 1..4 = As of Q1..Q4
   String _fundCode = 'ALL';
@@ -118,6 +121,9 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
   void _resetAllFilters() {
     setState(() {
       _selectedCat = 'ALL';
+      _far2MfoFilter = 'ALL';
+      _far2ClassFilter = 'ALL';
+      _metricActivityFilter = 'ALL';
       _fy = 'ALL';
       _maxQuarter = 0;
       _fundCode = 'ALL';
@@ -125,6 +131,19 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
       _searchController.clear();
       _columnFilters.clear();
     });
+  }
+
+  bool _matchesMetricActivity(ReportMetrics m) {
+    switch (_metricActivityFilter) {
+      case 'BUDGET':
+        return m.adjustedBudget != 0.0 || m.approvedBudget != 0.0;
+      case 'UTILIZED':
+        return m.totalUtilizations != 0.0;
+      case 'UNPAID':
+        return m.totalUnpaidUtilization != 0.0;
+      default:
+        return true;
+    }
   }
 
   List<CentralReportRow> _filterCentralRows(
@@ -605,38 +624,71 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (widget.reportType == ReportType.far2a)
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: BrmsColors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: BrmsColors.outlineVariant),
-            ),
-            child: Wrap(
-              spacing: 4,
-              children: [
-                _CatTab(
-                  label: 'All Classes',
-                  count:
-                      '${bundle.far2AGroups.fold<int>(0, (s, g) => s + g.rows.length)}',
-                  selected: _selectedCat == 'ALL',
-                  onTap: () => setState(() => _selectedCat = 'ALL'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: BrmsColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: BrmsColors.outlineVariant),
                 ),
-                ...bundle.far2AGroups.map(
-                  (g) => _CatTab(
-                    label: BrmsFormatters.shortAllotmentLabel(g.allotmentClass),
-                    count: '${g.rows.length}',
-                    selected: _selectedCat == g.allotmentClass,
-                    onTap: () =>
-                        setState(() => _selectedCat = g.allotmentClass),
+                child: Wrap(
+                  spacing: 4,
+                  children: [
+                    _CatTab(
+                      label: 'All Classes',
+                      count:
+                          '${bundle.far2AGroups.fold<int>(0, (s, g) => s + g.rows.length)}',
+                      selected: _selectedCat == 'ALL',
+                      onTap: () => setState(() => _selectedCat = 'ALL'),
+                    ),
+                    ...bundle.far2AGroups.map(
+                      (g) => _CatTab(
+                        label: BrmsFormatters.shortAllotmentLabel(
+                          g.allotmentClass,
+                        ),
+                        count: '${g.rows.length}',
+                        selected: _selectedCat == g.allotmentClass,
+                        onTap: () =>
+                            setState(() => _selectedCat = g.allotmentClass),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'SHOW:',
+                value: _metricActivityFilter,
+                items: const [
+                  DropdownMenuItem(value: 'ALL', child: Text('All Objects')),
+                  DropdownMenuItem(
+                    value: 'BUDGET',
+                    child: Text('With Budget (> 0)'),
                   ),
-                ),
-              ],
-            ),
+                  DropdownMenuItem(
+                    value: 'UTILIZED',
+                    child: Text('With Utilizations (> 0)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'UNPAID',
+                    child: Text('With Unpaid (> 0)'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _metricActivityFilter = v);
+                },
+              ),
+            ],
           )
         else if (widget.reportType == ReportType.far2)
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               BrmsButton(
                 label: 'Expand All MFOs',
@@ -647,13 +699,72 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
                   () => _expandedMfos.addAll(BrmsFormatters.mfoPrograms),
                 ),
               ),
-              const SizedBox(width: 8),
               BrmsButton(
                 label: 'Collapse All',
                 icon: Icons.unfold_less,
                 primary: false,
                 height: 32,
                 onPressed: () => setState(() => _expandedMfos.clear()),
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'PROGRAM:',
+                value: _far2MfoFilter,
+                items: [
+                  const DropdownMenuItem(
+                    value: 'ALL',
+                    child: Text('All Programs'),
+                  ),
+                  ...BrmsFormatters.mfoPrograms.map(
+                    (m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(m, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _far2MfoFilter = v);
+                },
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'CLASS:',
+                value: _far2ClassFilter,
+                items: [
+                  const DropdownMenuItem(
+                    value: 'ALL',
+                    child: Text('All Classes'),
+                  ),
+                  ...BrmsFormatters.allotmentClasses.map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(BrmsFormatters.shortAllotmentLabel(c)),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _far2ClassFilter = v);
+                },
+              ),
+              BrmsTableFilterSelect<String>(
+                label: 'SHOW:',
+                value: _metricActivityFilter,
+                items: const [
+                  DropdownMenuItem(value: 'ALL', child: Text('All Rows')),
+                  DropdownMenuItem(
+                    value: 'BUDGET',
+                    child: Text('With Budget (> 0)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'UTILIZED',
+                    child: Text('With Utilizations (> 0)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'UNPAID',
+                    child: Text('With Unpaid (> 0)'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _metricActivityFilter = v);
+                },
               ),
             ],
           )
@@ -1555,14 +1666,25 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
     final rows = <DataRow>[];
 
     for (final group in bundle.far2Groups) {
+      if (_far2MfoFilter != 'ALL' && group.mfoProgram != _far2MfoFilter) {
+        continue;
+      }
       final matchesParent = group.mfoProgram.toLowerCase().contains(q);
-      final matchingChildren = q.isEmpty || matchesParent
-          ? group.children
-          : group.children
-                .where((c) => c.label.toLowerCase().contains(q))
-                .toList();
+      final matchingChildren = group.children.where((c) {
+        if (_far2ClassFilter != 'ALL' && c.allotmentClass != _far2ClassFilter) {
+          return false;
+        }
+        if (!_matchesMetricActivity(c.metrics)) return false;
+        if (q.isNotEmpty && !matchesParent) {
+          return c.label.toLowerCase().contains(q);
+        }
+        return true;
+      }).toList();
 
-      if (q.isNotEmpty && !matchesParent && matchingChildren.isEmpty) {
+      if (matchingChildren.isEmpty &&
+          (_far2ClassFilter != 'ALL' ||
+              _metricActivityFilter != 'ALL' ||
+              (q.isNotEmpty && !matchesParent))) {
         continue;
       }
 
@@ -1714,17 +1836,19 @@ class _Far1AReportScreenState extends ConsumerState<Far1AReportScreen> {
     var grandTotal = const ReportMetrics();
 
     for (final g in visibleGroups) {
-      final matchingRows = q.isEmpty
-          ? g.rows
-          : g.rows
-                .where(
-                  (r) =>
-                      r.particulars.toLowerCase().contains(q) ||
-                      r.accountCode.toLowerCase().contains(q),
-                )
-                .toList();
+      final matchingRows = g.rows.where((r) {
+        if (!_matchesMetricActivity(r.metrics)) return false;
+        if (q.isNotEmpty) {
+          return r.particulars.toLowerCase().contains(q) ||
+              r.accountCode.toLowerCase().contains(q);
+        }
+        return true;
+      }).toList();
 
-      if (q.isNotEmpty && matchingRows.isEmpty) continue;
+      if ((q.isNotEmpty || _metricActivityFilter != 'ALL') &&
+          matchingRows.isEmpty) {
+        continue;
+      }
 
       rows.add(
         DataRow(

@@ -22,6 +22,7 @@ class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
 class _ExecutiveDashboardScreenState
     extends ConsumerState<ExecutiveDashboardScreen> {
   String _selectedFundFilter = 'ALL';
+  String _selectedUacsFilter = 'ALL';
   String _selectedStatusFilter = 'All Statuses';
   String _selectedFy = 'ALL';
   final _searchController = TextEditingController();
@@ -1566,9 +1567,21 @@ class _ExecutiveDashboardScreenState
     BuildContext context,
     DashboardSummaryData data,
   ) {
+    final uacsValues = data.allObrItems
+        .map((r) => r.accountCode)
+        .toSet()
+        .toList()
+      ..sort();
+    final activeUacsFilter = uacsValues.contains(_selectedUacsFilter)
+        ? _selectedUacsFilter
+        : 'ALL';
+
     final q = _searchQuery.trim().toLowerCase();
     final filteredRows = data.allObrItems.where((row) {
       if (_selectedFundFilter != 'ALL' && row.fundCode != _selectedFundFilter) {
+        return false;
+      }
+      if (activeUacsFilter != 'ALL' && row.accountCode != activeUacsFilter) {
         return false;
       }
       if (_selectedStatusFilter != 'All Statuses' &&
@@ -1681,6 +1694,21 @@ class _ExecutiveDashboardScreenState
                         });
                       },
                     ),
+                    if (uacsValues.isNotEmpty)
+                      _FilterDropdownPill(
+                        label: 'UACS:',
+                        value: activeUacsFilter == 'ALL'
+                            ? 'All UACS Codes'
+                            : activeUacsFilter,
+                        items: ['All UACS Codes', ...uacsValues],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _selectedUacsFilter =
+                                v == 'All UACS Codes' ? 'ALL' : v;
+                          });
+                        },
+                      ),
                     _FilterDropdownPill(
                       label: 'STATUS:',
                       value: _selectedStatusFilter,
@@ -1696,6 +1724,19 @@ class _ExecutiveDashboardScreenState
                         }
                       },
                     ),
+                    if (_selectedFundFilter != 'ALL' ||
+                        activeUacsFilter != 'ALL' ||
+                        _selectedStatusFilter != 'All Statuses')
+                      BrmsButton(
+                        label: 'Reset',
+                        primary: false,
+                        height: 32,
+                        onPressed: () => setState(() {
+                          _selectedFundFilter = 'ALL';
+                          _selectedUacsFilter = 'ALL';
+                          _selectedStatusFilter = 'All Statuses';
+                        }),
+                      ),
                     BrmsButton(
                       label: 'Export CSV',
                       icon: Icons.file_download_outlined,
